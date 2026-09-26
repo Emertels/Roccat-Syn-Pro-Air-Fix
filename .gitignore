@@ -1,0 +1,13 @@
+# Configurações dinâmicas de tempo de execução
+config.json
+
+# Logs e arquivos temporários do Windows
+*.tmp
+*.log
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# IDE / Editor
+.vscode/
+.idea/
