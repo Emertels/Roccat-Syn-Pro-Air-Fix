@@ -16,7 +16,6 @@
 [![Discord Oficial](https://img.shields.io/badge/Discord-Emertels%20Server-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/cnTxQhWWQp)
 [![Telegram Mods](https://img.shields.io/badge/Telegram-Aplicativos%20Mods-26A5E4?style=flat-square&logo=telegram&logoColor=white)](https://t.me/apksmodsandroid)
 [![Apoie no Ko-fi](https://img.shields.io/badge/Ko--fi-Apoiar%20Projetos-FF5E5B?style=flat-square&logo=kofi&logoColor=white)](https://ko-fi.com/emertels)
-[![IA Pair: Google DeepMind Antigravity](https://img.shields.io/badge/IA%20Pair-Antigravity%20(Google%20DeepMind)-orange.svg?style=flat-square)](#)
 
 <br/>
 <br/>
@@ -44,7 +43,7 @@ Este projeto nasceu de uma necessidade real de engenharia: solucionar de forma d
 
 > [!IMPORTANT]
 > **Autoria & Créditos:**  
-> Desenvolvido por **Emerson Teles** em colaboração técnica com o agente de IA **Antigravity (Google DeepMind)**.
+> Desenvolvido por **Emerson Teles**.
 
 ---
 
