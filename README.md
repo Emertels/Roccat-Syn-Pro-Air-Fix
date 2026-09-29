@@ -4,12 +4,13 @@
 <div align="center">
 
 **🌐 Idiomas / Languages:**  
-[![Português Brasil](https://img.shields.io/badge/Idioma-Portugu%C3%AAs%20(Brasil)-green?style=for-the-badge)](README-PT-BR.md)
-[![English](https://img.shields.io/badge/Language-English-blue?style=for-the-badge)](README-EN.md)
+  <a href="README-PT-BR.md"><img src="https://img.shields.io/badge/Documenta%C3%A7%C3%A3o-Portugu%C3%AAs%20(Brasil)-green?style=for-the-badge" alt="PT-BR"></a>
+  <a href="README-EN.md"><img src="https://img.shields.io/badge/Documentation-English-blue?style=for-the-badge" alt="EN"></a>
+  <a href="CHANGELOG-PT-BR.md"><img src="https://img.shields.io/badge/Changelog-PT--BR-purple?style=for-the-badge" alt="Changelog PT-BR"></a>
+  <a href="CHANGELOG-EN.md"><img src="https://img.shields.io/badge/Changelog-EN-darkblue?style=for-the-badge" alt="Changelog EN"></a>
 
 <br/>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 [![Plataforma: Windows 10 / 11](https://img.shields.io/badge/Plataforma-Windows%2010%20%2F%2011-0078D6.svg?style=flat-square&logo=windows&logoColor=white)](https://microsoft.com)
 [![Idiomas: 10 Auto-Detectados](https://img.shields.io/badge/Idiomas-10%20Auto--Detectados-2ea44f.svg?style=flat-square)](#-6-suporte-multilíngue-10-idiomas-nativos)
 [![Discord Oficial](https://img.shields.io/badge/Discord-Emertels%20Server-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/cnTxQhWWQp)
@@ -172,14 +173,19 @@ O script auto-reconhece o idioma do sistema operacional do usuário entre 10 op�
 
 ## 👤 Sobre o Autor
 
-Desenvolvido por **Emerson Teles** (mais conhecido na comunidade como **Emertels**).
+Desenvolvido e mantido por **Emerson Teles** (conhecido na comunidade como **Emertels**).
 
-Apaixonado por tecnologia, informática, hardware, jogos, manutenção avançada de sistemas e tradução/localização de softwares, sistemas e emuladores para o Português do Brasil (PT-BR).
+Apaixonado por tecnologia, informática, jogos, manutenção de sistemas e tradução/localização de softwares e emuladores para o Português do Brasil (PT-BR).
 
 ### 🛠️ Projetos & Contribuições Notáveis:
-- **Softwares & Utilitários:** Tradução 100% de **DSX** (DualSense X — Trusted Translator), **ASUS GPU Tweak III**, **dnGrep**, **XWidget**, **Microsoft Photos Fix**, **AI-Chat-Vault**, e utilitários web (**DualSense Tester**, **DualShock Tools**).
-- **Emulação & Consoles:** Criador da suíte de tradução multilíngue **PSBBN-Translator** (PlayStation Broadband Navigator do PS2), localização de emuladores como **PCSX2**, **Dolphin**, **shadPS4**, **Azahar** e **RetroArch**.
-- **Jogos:** Tradução de **Silent Hill 5: Homecoming**, projetos em andamento em **Silent Hill 4: The Room** e diversos outros.
+- **Suítes de Automação & Utilitários no GitHub:**
+  - **[Suite-Emuladores](https://github.com/Emertels/Suite-Emuladores)** — Suíte inteligente em PowerShell para download e atualização autônoma de 56 emuladores e frontends.
+  - **[AI-Chat-Vault](https://github.com/Emertels/AI-Chat-Vault)** — Backup portátil e recuperação de conversas locais de 20 IAs agenticas e ferramentas de programação.
+  - **[Microsoft-Photos-Fix](https://github.com/Emertels/Microsoft-Photos-Fix)** — Correção avançada em PowerShell e C# para rota de abertura e papel de parede no Microsoft Fotos.
+  - **[Roccat-Syn-Pro-Air-Fix](https://github.com/Emertels/Roccat-Syn-Pro-Air-Fix)** — Suíte definitiva de estabilização, áudio e blindagem anti-queda para headset sem fio.
+- **Emulação & Consoles:** Criador e arquiteto da **[PSBBN-Translator](https://github.com/Emertels/PSBBN-Translator)** para o PS2 (40 idiomas); localização e suporte a emuladores como **PSBBN**, **PCSX2**, **Dolphin**, **shadPS4**, **Azahar** e **RetroArch**.
+- **Softwares & Utilitários:** Tradução 100% de **DSX** (DualSense X - Trusted Translator), **ASUS GPU Tweak III**, **dnGrep**, **XWidget** e ferramentas web (**DualSense Tester**, **DualShock Tools**).
+- **Jogos:** Tradução de **Silent Hill 5: Homecoming**, projetos em andamento em **Silent Hill 4: The Room** e diversos outros aplicativos.
 
 ---
 
@@ -187,11 +193,11 @@ Apaixonado por tecnologia, informática, hardware, jogos, manutenção avançada
 
 <div align="left">
 
-[![Discord](https://img.shields.io/badge/Discord-Emertels%20Server-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/cnTxQhWWQp)
-[![Telegram](https://img.shields.io/badge/Telegram-Aplicativos%20Mods-26A5E4?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/apksmodsandroid)
 [![GitHub](https://img.shields.io/badge/GitHub-Emertels-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/emertels)
+[![Discord](https://img.shields.io/badge/Discord-Emertels%20Server-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/cnTxQhWWQp)
+[![X / Twitter](https://img.shields.io/badge/X_Twitter-@emertels-000000?style=for-the-badge&logo=x&logoColor=white)](https://x.com/emertels)
 [![YouTube](https://img.shields.io/badge/YouTube-Emerson_Teles-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://www.youtube.com/@emersonteles2379)
-[![X / Twitter](https://img.shields.io/badge/X-@emertels-000000?style=for-the-badge&logo=x&logoColor=white)](https://x.com/emertels)
-[![Ko-fi](https://img.shields.io/badge/Ko--fi-Apoiar%20Projetos-FF5E5B?style=for-the-badge&logo=kofi&logoColor=white)](https://ko-fi.com/emertels)
+[![Telegram](https://img.shields.io/badge/Telegram-Aplicativos%20Mods-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/apksmodsandroid)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Apoiar%20Projeto-FF5E5B?style=for-the-badge&logo=kofi&logoColor=white)](https://ko-fi.com/emertels)
 
 </div>
