@@ -1,4 +1,4 @@
-﻿# 🎧 ROCCAT Syn Pro Air — Gerenciador Mestre de Áudio & Correção Definitiva
+# 🎧 ROCCAT Syn Pro Air — Gerenciador Mestre de Áudio & Correção Definitiva
 ### Suíte Definitiva de Estabilização, Controle de Áudio & Correção de Ciclagens (Windows 10 & 11)
 
 <div align="center">
@@ -13,9 +13,6 @@
 
 [![Plataforma: Windows 10 / 11](https://img.shields.io/badge/Plataforma-Windows%2010%20%2F%2011-0078D6.svg?style=flat-square&logo=windows&logoColor=white)](https://microsoft.com)
 [![Idiomas: 10 Auto-Detectados](https://img.shields.io/badge/Idiomas-10%20Auto--Detectados-2ea44f.svg?style=flat-square)](#-6-suporte-multilíngue-10-idiomas-nativos)
-[![Discord Oficial](https://img.shields.io/badge/Discord-Emertels%20Server-5865F2?style=flat-square&logo=discord&logoColor=white)](https://emertels.github.io/discord)
-[![Telegram Mods](https://img.shields.io/badge/Telegram-Aplicativos%20Mods-26A5E4?style=flat-square&logo=telegram&logoColor=white)](https://t.me/apksmodsandroid)
-[![Apoie no Ko-fi](https://img.shields.io/badge/Ko--fi-Apoiar%20Projetos-FF5E5B?style=flat-square&logo=kofi&logoColor=white)](https://ko-fi.com/emertels)
 
 <br/>
 <br/>

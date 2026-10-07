@@ -1,4 +1,4 @@
-﻿# 🎧 ROCCAT Syn Pro Air — Master Audio Manager & Definitive Fix
+# 🎧 ROCCAT Syn Pro Air — Master Audio Manager & Definitive Fix
 ### Definitive Stabilization Suite, Audio Controller & Cycling Fix (Windows 10 & 11)
 
 <div align="center">
@@ -13,9 +13,6 @@
 
 [![Platform: Windows 10 / 11](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011-0078D6.svg?style=flat-square&logo=windows&logoColor=white)](https://microsoft.com)
 [![Languages: 10 Auto--Detected](https://img.shields.io/badge/Languages-10%20Auto--Detected-2ea44f.svg?style=flat-square)](#-6-multilingual-support-10-native-languages)
-[![Official Discord](https://img.shields.io/badge/Discord-Emertels%20Server-5865F2?style=flat-square&logo=discord&logoColor=white)](https://emertels.github.io/discord)
-[![Telegram Mods](https://img.shields.io/badge/Telegram-Aplicativos%20Mods-26A5E4?style=flat-square&logo=telegram&logoColor=white)](https://t.me/apksmodsandroid)
-[![Support on Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20Projects-FF5E5B?style=flat-square&logo=kofi&logoColor=white)](https://ko-fi.com/emertels)
 
 <br/>
 <br/>
