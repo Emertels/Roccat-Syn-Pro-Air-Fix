@@ -11,6 +11,8 @@
 
 <br/>
 
+[![Versão: v1.0.0](https://img.shields.io/badge/Versão-v1.0.0-blue.svg?style=flat-square&logo=github)](https://github.com/Emertels/Roccat-Syn-Pro-Air-Fix/releases/latest)
+[![Licença: MIT](https://img.shields.io/badge/Licença-MIT-green.svg?style=flat-square)](LICENSE)
 [![Plataforma: Windows 10 / 11](https://img.shields.io/badge/Plataforma-Windows%2010%20%2F%2011-0078D6.svg?style=flat-square&logo=windows&logoColor=white)](https://microsoft.com)
 [![Idiomas: 10 Auto-Detectados](https://img.shields.io/badge/Idiomas-10%20Auto--Detectados-2ea44f.svg?style=flat-square)](#-6-suporte-multilíngue-10-idiomas-nativos)
 
