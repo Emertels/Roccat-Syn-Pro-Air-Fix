@@ -1,67 +1,41 @@
-# 🤖 AGENTS-EN.md — Technical Guide for AI Agents & Open-Source Contributors
+# Technical maintenance and agent guide
 
-This document provides complete system architecture specifications, hardware registers, driver mechanics, and diagnostic heuristics for autonomous AI agents (such as Antigravity, Claude, Copilot, etc.) and human developers working on or auditing the **ROCCAT Syn Pro Air Master Fix** repository.
+This file describes what the repository implements. Do not treat hypotheses, menu labels, or historical claims as evidence of cause or effectiveness.
 
----
+## Goal and available evidence
 
-## 📋 1. Project Mission & Historical Background
+The project helps observe ROCCAT Syn Pro Air audio endpoints and offers reversible settings on Windows 10/11. In the current report, the dongle can remain connected while Windows removes and re-enumerates the audio/microphone endpoint. The dongle's PnP status does not tell whether the headset is powered on or identify what initiated an endpoint change. Audio/Operational event 65, when available, records a state change; it does not prove that Waves, Swarm, USB, or hardware caused it.
 
-* **Goal:** Definitively resolve the chronic audio-cycling, disconnect, and speaker-switching bug on the **ROCCAT Syn Pro Air** wireless gaming headset on Windows 10 and Windows 11.
-* **Original Author & Investigator:** Emerson Teles.
-* **AI Pair Programming Partner:** Antigravity (Google DeepMind).
-* **Corporate Market Context:** ROCCAT was acquired and retired by Turtle Beach. The Syn Pro Air is legacy hardware unsupported by the newer Turtle Beach Swarm II software suite, remaining pinned to ROCCAT Swarm 1 with an unmaintained 2021 kernel driver (`WavesTBVirtual.sys`) that suffers silent buffer desynchronization upon cumulative Windows updates.
-* **Tested Environment:** Validated and proven across multiple fresh OS installations and hardware revisions by Emerson Teles.
+Do not claim a definitive fix, guaranteed selection of `usbaudio.sys`, working LEDs, or that event 65 identifies the initiating process. Final validation requires observing the user's PC and headset during the failure.
 
----
+## Structure and launch
 
-## 🔌 2. Hardware Identification & Audio Endpoints
+- `Roccat-SynPro-Manager.ps1`: PowerShell panel for Windows PowerShell 5.1.
+- `i18n.json`: editable source for ten languages.
+- `Roccat-SynPro-Manager.vbs`: requests elevation through UAC and starts PowerShell; uses `Sysnative` when a 32-bit VBS host runs on 64-bit Windows.
+- `Roccat-SynPro-Manager.bat`: legacy compatibility wrapper, excluded from the portable package.
+- `tools/New-PortablePackage.ps1`: replaces the single `@@ROCCAT_I18N_JSON_EMBED@@` marker, writes a UTF-8 BOM PS1, and builds/inspects the release ZIP.
+- `README.md` and `README-EN.md`: user guides; `README-PT-BR.md` is the Portuguese copy for an explicit link.
+- `CHANGELOG-PT-BR.md` and `CHANGELOG-EN.md`: version history.
 
-| Attribute | Technical Value |
-| :--- | :--- |
-| **Vendor ID (VID)** | `1E7D` (ROCCAT / Turtle Beach) |
-| **Product ID (PID)** | `3A3B` (Syn Pro Air 2.4GHz Wireless Transmitter Dongle) |
-| **Parent USB Device** | `USB\VID_1E7D&PID_3A3B\5018C4BF4C18` |
-| **Composite Interfaces** | `MI_00` (HID Controls), `MI_01` (USB Audio Class 1/2), `MI_05` (Lighting & Firmware) |
-| **Native Microsoft Driver** | `usbaudio.sys` (`wdma_usb.inf` provided by Microsoft) |
-| **Problematic Driver** | `WavesTBVirtual.sys` (`C:\Windows\system32\drivers\WavesTBVirtual.sys`) |
-| **Virtual Device Node** | `ROOT\MEDIA\0000` (*Virtual Audio Device*) |
+The published ZIP contains only `Roccat-SynPro-Manager.ps1` (embedded translations) and `Roccat-SynPro-Manager.vbs`. It is not an installer and does not contain README, agent documents, a separate language JSON, or the BAT wrapper.
 
----
+## Option behavior
 
-## ⚙️ 3. Failure Mode Mechanics & Diagnostic Heuristics
+1. **Stable mode:** validates a backup before setting `HKLM:\SYSTEM\CurrentControlSet\Services\WavesTBVirtual\Start` to 4 and stopping the driver; verifies the stop. It does not change the default endpoint. Swarm Waves features may be unavailable. Option 4 (`R`) restores the saved state.
+2. **Temporary Swarm:** captures the previous startup/running state, sets Start=3, starts Waves and Swarm. When Swarm closes or monitoring is cancelled by ESC/Ctrl+C, it attempts to restore the captured state. Cancelling leaves Swarm open; force-terminating PowerShell can interrupt restoration.
+3. **Passive sentinel:** observes event 65 and AudioEndpoint PnP states for output/microphone; it does not modify the driver, PnP state, endpoint, or default output. It logs transitions to `sentinela.log` and keeps polling when no new events are present. ESC/Ctrl+C returns to the menu.
+4. **Power/communications:** snapshots USB selective-suspend values per power scheme, the prior UserDuckingPreference, and readable WMI states. Applies and checks changes; reports when Root Hubs cannot be enumerated or verified. Restore requires the needed snapshot data.
+5. **Diagnostics:** saves PnP state, endpoint parent, problem code when available, driver/service details and queried events; opens `mmsys.cpl`. The report does not prove cause.
+6. **Language:** saves the preference in the local profile; strings come from `i18n.json` in the repository or embedded JSON in the published script.
 
-### The Conflict Chain:
-1. When the *Turtle Beach Audio Driver* package is installed, the service `WavesTBVirtual.sys` creates a secondary virtual audio endpoint: `Headset Chat (Turtle Beach)`.
-2. The Windows Audio Service (`audiosrv.dll`) and `AudioEndpointBuilder` encounter sample buffer desynchronization during polling routines with the legacy Waves driver.
-3. Windows marks the primary endpoint `HEADSET (SYN Pro Air)` as `Unknown` (disabled in `MMDevAPI`), switching the default audio output to secondary devices (e.g., Creative 2.1 speakers).
-4. The background process `ROCCAT_Waves_Driver.exe` notices the disabled endpoint and attempts to force it back on, generating an **infinite reset loop** logged in the Windows Event Viewer:
-   * **Path:** `Applications and Services Logs > Microsoft > Windows > Audio > Operational`
-   * **Event ID:** `65` (*MMDevAPI: Audio device state has changed*)
+Data files are stored under `%LOCALAPPDATA%\RoccatSynProManager`, with a fallback to the script folder. ESC in the main menu exits the process.
 
-### Isochronous USB Bandwidth Exhaustion (ASMedia vs. Intel/AMD):
-* Connecting the transmitter dongle to ports controlled by third-party chips (such as ASMedia `PCI\VEN_1B21&DEV_3241`) frequently causes *periodic isochronous bandwidth exhaustion* ("USB controller resources exceeded").
-* **Technical Requirement:** The dongle must be plugged directly into USB ports connected to the motherboard's primary native chipset (Intel `PCI\VEN_8086&DEV_A3AF` or AMD equivalent).
+## Maintenance rules
 
----
-
-## 🛠️ 4. System Registry & Power Policies
-
-| Policy / Key | Required Target Value | Purpose |
-| :--- | :--- | :--- |
-| `HKLM:\SYSTEM\CurrentControlSet\Services\WavesTBVirtual` -> `Start` | `4` (Disabled) or `3` (Manual) | `4` prevents kernel driver auto-load, locking headset in rock-solid Microsoft native driver mode. |
-| `powercfg` Subgroup `2a737441-1930-4402-8d77-b2bebba308a3`, Option `48e6b7a6-50f5-4782-a5d4-53bb8f07e226` | `0x00000000` (AC & DC) | Disables Windows USB Selective Suspend across all system power plans. |
-| `HKCU:\SOFTWARE\Microsoft\Multimedia\Audio` -> `UserDuckingPreference` | `3` (DWORD) | Sets communication ducking to "Do Nothing". |
-| WMI `root\wmi:MSPower_DeviceEnable` | `Enable = $false` on Root Hubs | Prevents Windows from placing internal USB hubs into low-power sleep states. |
-
----
-
-## 🤖 5. Guidelines & Safety Constraints for AI Agents
-
-1. **Preserve Native Microsoft Driver (`usbaudio.sys`):**
-   * Never attempt to uninstall or replace Microsoft's native `usbaudio.sys`. The Syn Pro Air hardware functions with 100% audio fidelity and zero drops on this native driver.
-2. **Maintain Multilingual Support (10 Languages):**
-   * All UI strings are stored in `i18n.json`. When modifying menu options or prompt text, update all 10 language nodes: `pt-BR`, `en-US`, `es-ES`, `fr-FR`, `de-DE`, `it-IT`, `ru-RU`, `ja-JP`, `zh-CN`, `ko-KR`.
-3. **Preserve Low-Latency CoreAudio C# COM Binding:**
-   * The `AudioController::SetDefaultAudio` function utilizes `IPolicyConfigVista` (`870C3566-265F-4D2A-8991-6101216C68FB`). This provides sub-millisecond audio endpoint reassignment without spawning heavy external command-line utilities.
-4. **Desktop Synchronization:**
-   * Any change made inside `C:\Projetos\Roccat-Syn-Pro-Air-Fix` must be mirrored to `C:\Users\Emerson Teles\Desktop\` for immediate end-user accessibility.
+- Preserve the Windows default output. Do not reintroduce forced headset selection, an unverified “restore” sentinel, automatic termination of Waves processes, or silent endpoint changes.
+- Before changing registry, driver service, or power settings, confirm the required snapshot is complete; afterward verify the resulting state and report partial failures.
+- Do not remove or replace Windows driver files. Changes to `WavesTBVirtual` must be described as driver-service changes with possible impact on Swarm features.
+- Update every used UI/monitor string in all ten languages; confirm each array has ten values and the JSON remains valid.
+- Keep exactly one embedding marker in the source PS1. Build the distribution with the package script, inspect the ZIP, and do not add documentation to the portable asset.
+- Separate observation from hypothesis. Do not add hardware/controller IDs, USB bandwidth diagnoses, or Windows internals without machine-specific evidence and a reliable source.

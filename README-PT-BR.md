@@ -1,201 +1,51 @@
-# 🎧 ROCCAT Syn Pro Air — Gerenciador Mestre de Áudio & Correção Definitiva
-### Suíte Definitiva de Estabilização, Controle de Áudio & Correção de Ciclagens (Windows 10 & 11)
+# ROCCAT Syn Pro Air — diagnóstico e gerenciamento de áudio
 
-<div align="center">
+Ferramenta portátil para investigar mudanças nos endpoints de áudio do ROCCAT Syn Pro Air e aplicar alguns ajustes reversíveis no Windows 10 e 11.
 
-**🌐 Idiomas / Languages:**  
-  <a href="README-PT-BR.md"><img src="https://img.shields.io/badge/Documenta%C3%A7%C3%A3o-Portugu%C3%AAs%20(Brasil)-green?style=for-the-badge" alt="PT-BR"></a>
-  <a href="README-EN.md"><img src="https://img.shields.io/badge/Documentation-English-blue?style=for-the-badge" alt="EN"></a>
-  <a href="CHANGELOG-PT-BR.md"><img src="https://img.shields.io/badge/Changelog-PT--BR-purple?style=for-the-badge" alt="Changelog PT-BR"></a>
-  <a href="CHANGELOG-EN.md"><img src="https://img.shields.io/badge/Changelog-EN-darkblue?style=for-the-badge" alt="Changelog EN"></a>
+[![Versão 1.2.0](https://img.shields.io/badge/vers%C3%A3o-1.2.0-blue)](https://github.com/Emertels/Roccat-Syn-Pro-Air-Fix/releases/tag/v1.2.0) · [English](README-EN.md) · [Changelog](CHANGELOG-PT-BR.md)
 
-<br/>
+> **Limite importante:** esta versão melhora o diagnóstico e torna as ações do painel mais cuidadosas. Ela não prova a causa das desconexões nem promete uma correção permanente. O evento de áudio 65 mostra uma mudança de estado, mas sozinho não diz qual programa, driver ou componente iniciou a mudança.
 
-[![Plataforma: Windows 10 / 11](https://img.shields.io/badge/Plataforma-Windows%2010%20%2F%2011-0078D6.svg?style=flat-square&logo=windows&logoColor=white)](https://microsoft.com)
-[![Idiomas: 10 Auto-Detectados](https://img.shields.io/badge/Idiomas-10%20Auto--Detectados-2ea44f.svg?style=flat-square)](#-6-suporte-multilíngue-10-idiomas-nativos)
+## O que sabemos sobre a falha
 
-<br/>
-<br/>
+No caso relatado, o dongle USB continua conectado enquanto o Windows faz o endpoint do headset/microfone desaparecer e reaparecer. Isso aponta para uma mudança na enumeração de áudio do Windows, mas o estado PnP `OK` do dongle não confirma que o headset sem fio esteja ligado, que o enlace de rádio esteja estável ou que o áudio esteja funcionando. As causas ainda a comparar incluem o driver `WavesTBVirtual`, o Swarm, a conexão USB e os serviços de áudio do Windows.
 
-<img src="assets/roccat-syn-pro-air-manager.png" alt="ROCCAT Syn Pro Air Master Manager Painel" width="850">
+O painel não escolhe o Syn Pro Air como saída padrão. Ele também não consegue detectar se o headset está fisicamente ligado quando apenas o dongle está conectado.
 
-*Painel Mestre Modular em execução: status da blindagem em tempo real, monitoramento dos drivers e 6 modos de estabilização.*
+## Menu
 
-</div>
+| Opção | O que faz | Efeitos e limites |
+|---|---|---|
+| **1 — Modo estável** | Salva ou confere uma cópia do estado e tenta parar o serviço `WavesTBVirtual`, definir sua inicialização como desativada e verificar o resultado. | Pode desativar recursos de áudio Waves no Swarm. Não escolhe uma saída padrão e não garante estabilidade. A opção 4 permite restaurar o estado salvo. |
+| **2 — Swarm temporário** | Registra o estado anterior do driver, habilita/inicia o Waves e abre o Swarm. Ao fechar o Swarm, tenta restaurar o estado anterior. | `ESC` ou `Ctrl+C` encerra o monitor e também tenta restaurar o driver; o Swarm fica aberto e pode perder recursos Waves. Fechar à força a janela/processo pode impedir a restauração automática. |
+| **3 — Monitoramento passivo** | Acompanha o evento 65 do log `Microsoft-Windows-Audio/Operational` e os estados PnP dos endpoints de saída e microfone. | Não altera driver, endpoint nem saída padrão. `ESC` ou `Ctrl+C` volta ao menu. O registro fica em `%LOCALAPPDATA%\RoccatSynProManager\diagnostics\sentinela.log`. |
+| **4 — Energia USB e comunicações** | Salva uma cópia e ajusta a suspensão seletiva USB nos planos de energia, a atenuação de comunicações do usuário e, quando a consulta WMI permite, a economia de energia dos Root Hubs. | As alterações verificadas e a cópia ficam em `%LOCALAPPDATA%\RoccatSynProManager\system-backup.json`. `R` restaura a cópia, `Enter` aplica/reaplica e `Q` cancela. Pode não resolver a falha. |
+| **5 — Diagnóstico e painel de som** | Gera um relatório com endpoints PnP, driver, eventos recentes de áudio/USB e abre `mmsys.cpl`. | O relatório fica na pasta `diagnostics`. Revise-o antes de compartilhar: inclui nome do computador, IDs de dispositivos e eventos locais. |
+| **6 — Idioma** | Escolhe um entre dez idiomas, com detecção automática inicial. | As traduções do pacote portátil estão dentro do próprio `.ps1`; a escolha fica no perfil local do usuário. |
 
----
+Na opção 1, o driver Waves é alterado no Registro e parado como serviço de driver. Isso é reversível pela cópia salva, mas pode afetar EQ, surround, monitoramento ou outros recursos do Swarm. Confira reprodução, microfone e o Swarm depois de qualquer mudança. LEDs e outros controles não são garantidos por este script.
 
-> [!NOTE]
-> **English Documentation:** For the complete English documentation, please visit [README-EN.md](README-EN.md).
+## Como iniciar
 
----
+1. Baixe `Roccat-Syn-Pro-Air-Fix-v1.2.0-Portable.zip` na [página da versão](https://github.com/Emertels/Roccat-Syn-Pro-Air-Fix/releases/tag/v1.2.0) e extraia os dois arquivos na mesma pasta.
+2. Abra **`Roccat-SynPro-Manager.vbs`**. Ele solicita elevação pelo UAC e inicia o PowerShell sem passar por uma janela de CMD.
+3. Leia cada mensagem antes de escolher uma opção. `ESC` no menu principal fecha o painel; `ESC` nas opções de monitoramento retorna ao menu.
 
-## 📌 1. Apresentação & Aviso de Responsabilidade (Disclaimer)
+O pacote é portátil e não tem instalador: contém somente o script PowerShell e o lançador VBS. A execução requer privilégios de administrador para as opções que alteram o driver ou as configurações do sistema. O Windows pode mostrar um aviso de segurança para scripts baixados; confira a origem e o conteúdo antes de autorizar.
 
-Este projeto nasceu de uma necessidade real de engenharia: solucionar de forma definitiva o bug crônico de desconexão, queda de áudio e alternância para caixas de som secundárias no headset sem fio **ROCCAT Syn Pro Air**. Esse problema persistiu durante mais de 3 anos, ocorrendo em mais de 5 a 7 ocasiões diferentes, inclusive logo após formatar o Windows do zero.
+## Dados e restauração
 
-> [!WARNING]
-> **Aviso de Isenção (Disclaimer):**  
-> Este script **não tem garantia absoluta de 100% de funcionamento para todas as placas-mãe e configurações de hardware do mundo**, pois cada computador possui barramentos USB, chipsets e versões de drivers diferentes. **Porém, comigo (o autor) ele solucionou definitiva e comprovadamente o problema após anos de frustração.** Use por sua conta e risco.
+O script guarda configuração, cópia de segurança e diagnósticos em `%LOCALAPPDATA%\RoccatSynProManager` (com fallback para a pasta do script se o perfil não estiver disponível). Opções que alteram configurações verificam os valores antes/depois sempre que o Windows expõe uma forma de consulta. A opção 4 pode restaurar a cópia; não apague `system-backup.json` antes de restaurar.
 
-> [!IMPORTANT]
-> **Autoria & Créditos:**  
-> Desenvolvido por **Emerson Teles**.
+O monitoramento é somente leitura. Um evento de endpoint não identifica a causa; compare os horários do relatório com a árvore PnP e os eventos de USB/Kernel-PnP para reunir mais evidências. Para investigar a falha original, rode a opção 3 antes e durante a oscilação e depois gere o relatório da opção 5.
 
----
+## Arquivos do repositório
 
-## 🛑 2. O Problema Crônico: O que acontece?
+- `Roccat-SynPro-Manager.ps1`: fonte do painel. No repositório, as traduções são editadas em `i18n.json`; o processo de pacote as incorpora ao script distribuído.
+- `Roccat-SynPro-Manager.vbs`: lançador elevado, sem janela intermediária de CMD.
+- `tools/New-PortablePackage.ps1`: monta e confere um ZIP com somente o `.ps1` e o `.vbs`.
+- `AGENTS-PT-BR.md` / `AGENTS-EN.md`: arquitetura e diretrizes de manutenção.
 
-Quem possui o **ROCCAT Syn Pro Air** (e modelos semelhantes como Elo 7.1 Air ou Syn Max Air) costuma enfrentar o seguinte ciclo no Windows:
+## Créditos
 
-1. O headset conecta normalmente e reproduz áudio.
-2. Após alguns segundos ou minutos (~10 a 30s), o som é subitamente interrompido.
-3. O Windows redireciona o áudio automaticamente para as caixas de som secundárias (ex: caixas Creative 2.1, áudio da placa de vídeo ou monitor).
-4. Em seguida, o headset reaparece e o som tenta voltar, criando um **loop infinito de vai-e-volta**.
-5. Ao abrir o software **ROCCAT Swarm**, surge a notificação:
-   > *"Detetámos que o microfone e os altifalantes de SYN PRO AIR estão desativados. Para poderes usar todos os recursos dos auscultadores na SWARM, ativa os altifalantes e o microfone através do painel de controlo de som do Windows."*
-6. **O mistério do tempo:** Quando o computador é formatado do zero, o headset funciona bem no início, mas **depois de semanas de uso, acúmulo de cache e atualizações cumulativas do Windows, o bug sempre retorna.**
-
----
-
-## 🔬 3. O Porquê Técnico: Por que isso acontece?
-
-### A. O Abandono Corporativo (ROCCAT x Turtle Beach)
-* A tradicional marca alemã de periféricos **ROCCAT** foi adquirida pela norte-americana **Turtle Beach**, que posteriormente decidiu **aposentar o nome ROCCAT**.
-* A Turtle Beach lançou sua nova suíte de controle, o **Swarm II**, mas **NÃO incluiu suporte para o Syn Pro Air**.
-* O headset ficou abandonado na versão legada **ROCCAT Swarm 1**, com firmware congelado (v1.09) e um driver de áudio da Turtle Beach (`WavesTBVirtual.sys`) que não recebe atualizações desde 2021/2022.
-
-### B. O Conflito de Endpoints e o Loop de Polling
-* Para habilitar recursos de software (Waves 3D Audio, Equalizador de 10 bandas e monitoramento de microfone), o Swarm exige a instalação do **Turtle Beach Audio Driver**.
-* Esse pacote instala o driver de kernel `WavesTBVirtual.sys` (`ROOT\MEDIA\0000`), criando o endpoint virtual `Headset Chat (Turtle Beach)`.
-* Conforme o Windows Update instala atualizações no subsistema de áudio (`audiosrv.dll`, `AudioEndpointBuilder`), o driver legado da Turtle Beach perde o sincronismo de buffers.
-* O driver desativa o endpoint de áudio para tentar se recuperar. O Windows, ao ver o fone sumir, joga o som para a Creative 2.1. O Swarm detecta o sumiço e tenta religar, gerando a rajada de eventos `MMDevAPI` (Event ID 65) a cada ~10 a 30 segundos.
-
-### C. A Armadilha da Suspensão Seletiva USB
-* O Windows vem de fábrica com a **Suspensão Seletiva USB ATIVADA** (`0x00000001`).
-* Durante momentos de silêncio (pausa em vídeos, telas de carregamento), o Windows corta a energia do receptor USB de 2.4GHz para poupar eletricidade, quebrando o handshake do driver da Turtle Beach.
-
-### D. Sobrecarga de Endpoints no Controlador USB (Intel vs. ASMedia)
-* Quando o dongle USB é conectado em portas USB controladas por chips secundários (como **ASMedia** ou portas frontais com hubs integrados), os controles (DualSense, Xbox, teclado, mouse) esgotam os *recursos isócronos de largura de banda* do controlador, disparando o aviso do Windows:
-  > *"Recursos de controlador USB excedidos — O controlador não tem recursos suficientes disponíveis para este dispositivo."*
-
----
-
-## 💡 4. Todos os Macetes Descobertos (Manual de Boas Práticas)
-
-| # | Macete | Explicação Prática |
-| :-: | :--- | :--- |
-| **1** | **Conectar no Controlador Nativo Intel/AMD** | Conecte o dongle USB diretamente nas portas USB traseiras soldadas na placa-mãe que pertencem ao chipset principal (Intel ou AMD). Evite portas frontais do gabinete ou hubs com muitos periféricos juntos. |
-| **2** | **Desativar a Suspensão Seletiva USB** | O comando `powercfg` deve forçar o valor para `0x00000000` em todos os planos de energia (AC e Bateria). |
-| **3** | **Desativar Gerenciamento de Energia nos Hubs** | No Gerenciador de Dispositivos (`devmgmt.msc`) > Controladores USB > desmarcar *"Permitir que o computador desligue este dispositivo para economizar energia"* em todos os Root Hubs USB. |
-| **4** | **Configurar Ducking para 'Não Fazer Nada'** | No painel de som (`mmsys.cpl`) > aba Comunicações > selecionar *"Não fazer nada"*. Isso impede que o Windows reduza o volume ou desvie o som ao detectar comunicação de voz. |
-| **5** | **Desmarcar Modo Exclusivo** | Nas propriedades do Headset > aba Avançado > desmarcar *"Permitir que aplicativos assumam controle exclusivo deste dispositivo"*. |
-| **6** | **O Macete do Auto-Piloto Swarm** | No dia a dia, mantenha o driver de kernel da Turtle Beach desabilitado (`Start = 4`). O headset funcionará 100% estável no driver nativo da Microsoft com controle de LEDs no Swarm. Quando quiser regular o equalizador ou microfone, use a Opção 2 para abrir o Swarm e ele desligará o driver sozinho ao fechar! |
-
----
-
-## 🛠️ 5. Manual Passo a Passo das Opções do Script
-
-O script detecta o idioma do Windows automaticamente entre 10 idiomas e exibe um **Badge de Status em tempo real**:
-* `[ ✓ POSITIVO: SISTEMA TOTALMENTE BLINDADO & FIX APLICADO ]`: Indica que as portas USB, a energia e o registro já estão protegidos contra o bug.
-* `[ ✗ PENDENTE: FIX NÃO APLICADO OU INCOMPLETO ]`: Indica que a Opção 4 ainda precisa ser executada.
-
-### Descrição Detalhada de Cada Opção:
-
-* **`[1] Modo Estável Definitivo (Uso Diário / Zero Falhas)`**:
-  * **O que faz:** Encerra os processos Waves e desativa o driver `WavesTBVirtual` no kernel do Windows (`Start = 4`).
-  * **Resultado:** O headset passa a operar no driver nativo de alta estabilidade da Microsoft (`usbaudio.sys`). O áudio **nunca mais cai para a Creative 2.1**, e os LEDs/AIMO continuam funcionando normalmente no Swarm!
-  * **Quando usar:** Ideal para jogar, assistir vídeos e usar o PC sem se preocupar com bugs.
-
-* **`[2] Modo Swarm Auto-Piloto (Configurar EQ e Microfone)`**:
-  * **O que faz:** Habilita temporariamente o driver da Turtle Beach (`Start = 3`), inicia o serviço e abre o ROCCAT Swarm.
-  * **A mágica:** O script fica vigiando em segundo plano. **Assim que você terminar suas regulagens e fechar a janela do Swarm, o script desliga o driver automaticamente!**
-  * **Quando usar:** Sempre que você quiser alterar o equalizador, graves, agudos ou sensibilidade do microfone no Swarm sem deixar o bug rodando solto no sistema.
-
-* **`[3] Modo Sincronizado / Sentinela Ativa (Turtle Beach + Swarm Ativos)`**:
-  * **O que faz:** Mantém o driver da Turtle Beach rodando e ativa um vigia em C# nativo (`CoreAudio`) que monitora o endpoint a cada 500ms.
-  * **Resultado:** Se o Windows ou o driver tentar desviar o som para a Creative 2.1, a sentinela intercepta a queda e restaura o Headset instantaneamente.
-  * **Quando usar:** Deixe esta janela aberta enquanto joga caso queira utilizar os efeitos proprietários Waves 3D Audio ativos em tempo real.
-
-* **`[4] Otimização Mestra do Windows (USB, Ducking e Energia)`**:
-  * **O que faz:** Varre todos os planos de energia do Windows desativando a Suspensão Seletiva USB, remove o modo de economia dos hubs USB da placa-mãe e trava a atenuação de comunicação em "Não Fazer Nada".
-  * **Quando usar:** Execute agora no seu Windows atual e sempre que formatar o computador no futuro.
-
-* **`[5] Abrir Painel de Som do Windows (mmsys.cpl)`**:
-  * **O que faz:** Abre a interface clássica do painel de som do Windows para conferência dos dispositivos de Reprodução e Gravação.
-
-* **`[6] Alterar Idioma / Change Language`**:
-  * **O que faz:** Permite trocar manualmente o idioma do painel entre os 10 idiomas disponíveis (as preferências são salvas em `config.json`).
-
----
-
-## 🌐 6. Suporte Multilíngue (10 Idiomas Nativos)
-
-O script auto-reconhece o idioma do sistema operacional do usuário entre 10 opções:
-
-1. 🇧🇷 **Português (Brasil)** — `pt-BR`
-2. 🇺🇸 **English (US)** — `en-US`
-3. 🇪🇸 **Español** — `es-ES`
-4. 🇫🇷 **Français** — `fr-FR`
-5. 🇩🇪 **Deutsch** — `de-DE`
-6. 🇮🇹 **Italiano** — `it-IT`
-7. 🇷🇺 **Русский** — `ru-RU`
-8. 🇯🇵 **日本語** — `ja-JP`
-9. 🇨🇳 **简体中文** — `zh-CN`
-10. 🇰🇷 **한국어** — `ko-KR`
-
----
-
-## 💻 7. Como Executar
-
-* **Método 1 (Dois Cliques no Prompt de Comando):**
-  1. Dê dois cliques em **`Roccat-SynPro-Manager.bat`**.
-  2. Confirme a solicitação de Administrador (UAC).
-  3. O menu interativo se abrirá diretamente no terminal.
-
-* **Método 2 (PowerShell):**
-  1. Clique com o botão direito em **`Roccat-SynPro-Manager.ps1`**.
-  2. Selecione **"Executar com o PowerShell"**.
-  3. O script solicitará permissão de Administrador e permanecerá aberto sem fechar sozinho.
-
----
-
-## 🛡️ 8. Segurança e Integridade
-* **Sem arquivos destrutivos:** Nenhum driver oficial do Windows é deletado ou corrompido.
-* **100% Transparente & Auditável:** Código limpo e aberto em PowerShell e C# puro.
-* **Totalmente Reversível:** Todas as operações podem ser ligadas, desligadas ou reconfiguradas a qualquer momento pelo menu.
-
----
-
-## 👨‍💻 Sobre o Autor
-
-Desenvolvido e mantido por **Emerson Teles** (conhecido na comunidade como **Emertels**).
-
-Entusiasta de tecnologia, informática, jogos, manutenção de sistemas e tradução/localização de softwares para Português do Brasil (PT-BR). Desenvolvedor focado em utilitários práticos, ferramentas de produtividade, automação inteligente em PowerShell e soluções completas de localização técnica que aproximam ferramentas modernas do público brasileiro.
-
-### 🛠️ Projetos & Contribuições
-
-- [AI-Chat-Vault](https://github.com/Emertels/AI-Chat-Vault) — Backup portátil e recuperação de conversas locais de 20+ ferramentas e assistentes de IA.
-- [Antigravity — Tradução PT-BR](https://github.com/Emertels/Antigravity-Traducao-PTBR) — Localização completa do Google Antigravity Desktop para Português do Brasil.
-- [Codex Router — Tradução PT-BR](https://github.com/Emertels/CodexRouter-Traducao-PTBR) — Pacote de tradução e localização do Codex Router Control Center em PT-BR.
-- [Cursor AI — Tradução PT-BR](https://github.com/Emertels/Cursor-Traducao-PTBR) — Localização completa e profunda do Cursor AI para Português do Brasil.
-- [GPU Tweak III — Tradução PT-BR](https://github.com/Emertels/GPU-Tweak-III-Traducao-PTBR) — Tradução em português brasileiro e instalador automatizado para ASUS GPU Tweak III.
-- [Microsoft Photos Fix](https://github.com/Emertels/Microsoft-Photos-Fix) — Solução definitiva em PowerShell e C# para rota de inicialização rápida e visualização no app Fotos do Windows.
-- [PSBBN-Translator](https://github.com/Emertels/PSBBN-Translator) — Suíte corporativa de tradução e localização para o PSBBN Definitive Project (PlayStation 2) em 40 idiomas.
-- [Silent Hill: Homecoming — Tradução PT-BR](https://github.com/Emertels/Silent-Hill-Homecoming-Traducao-PTBR) — Tradução e revisão completa do jogo para PC em português brasileiro.
-- [Suite-Emuladores](https://github.com/Emertels/Suite-Emuladores) — Suíte inteligente em PowerShell para download e atualização autônoma de 56 emuladores e frontends no Windows.
-- [ZCode — Tradução PT-BR](https://github.com/Emertels/ZCode-Traducao-PTBR) — Tradução e localização completa do ZCode Desktop para Português do Brasil.
-
-### 🌐 Conecte-se comigo & Comunidades Oficiais
-
-<div align="left">
-
-[![GitHub](https://img.shields.io/badge/GitHub-Emertels-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/emertels)
-[![Website](https://img.shields.io/badge/Website-Emerson_Teles-0070F3?style=for-the-badge&logo=googlechrome&logoColor=white)](https://emertels.github.io)
-[![Discord](https://img.shields.io/badge/Discord-Emertels%20Server-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://emertels.github.io/discord)
-[![X / Twitter](https://img.shields.io/badge/X_Twitter-@emertels-000000?style=for-the-badge&logo=x&logoColor=white)](https://x.com/emertels)
-[![YouTube](https://img.shields.io/badge/YouTube-Emerson_Teles-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://www.youtube.com/@emersonteles2379)
-[![Telegram](https://img.shields.io/badge/Telegram-Aplicativos%20Mods-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/apksmodsandroid)
-[![Ko-fi](https://img.shields.io/badge/Ko--fi-Apoiar%20Projeto-FF5E5B?style=for-the-badge&logo=kofi&logoColor=white)](https://ko-fi.com/emertels)
-
-</div>
+Desenvolvido por **Emerson Teles**. O projeto é distribuído sob a licença MIT; consulte [LICENSE](LICENSE).
