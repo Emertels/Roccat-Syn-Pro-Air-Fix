@@ -1,7 +1,7 @@
 ﻿# ==============================================================================
 #  ROCCAT SYN PRO AIR - MULTILINGUAL MASTER MANAGER (v1.2.0)
 #  Auto-detects Windows language from 10 native supported languages
-#  Developed by Emerson Teles & Antigravity (Google DeepMind)
+#  Developed with Antigravity & Codex
 # ==============================================================================
 
 # Auto-elevacao transparente para Administrador
@@ -13,7 +13,7 @@ if (-not $isAdmin) {
 }
 
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$host.UI.RawUI.WindowTitle = "ROCCAT Syn Pro Air - Master Manager (By Emerson Teles & Antigravity)"
+$host.UI.RawUI.WindowTitle = "ROCCAT Syn Pro Air - Master Manager (Antigravity & Codex)"
 
 $driverName = "WavesTBVirtual"
 $regPath = "HKLM:\SYSTEM\CurrentControlSet\Services\$driverName"
@@ -570,7 +570,7 @@ function Show-Header {
     Write-Host "==============================================================================" -ForegroundColor DarkCyan
     Write-Host "             $((Get-Text 'Title' 'ROCCAT SYN PRO AIR - MASTER MANAGER'))      " -ForegroundColor Cyan
     Write-Host "==============================================================================" -ForegroundColor DarkCyan
-    Write-Host " $((Get-Text 'Credit' 'Desenvolvido por Emerson Teles com Antigravity'))" -ForegroundColor DarkGray
+    Write-Host " $((Get-Text 'Credit' 'Desenvolvido com Antigravity e Codex'))" -ForegroundColor DarkGray
     Write-Host " $((Get-Text 'Disclaimer' 'Aviso: o painel diagnostica e altera configuracoes; nao garante a correcao.'))" -ForegroundColor Yellow
     Write-Host "------------------------------------------------------------------------------" -ForegroundColor DarkCyan
     Write-Host " $((Get-Text 'Session' 'Sessao iniciada em:')) " -NoNewline -ForegroundColor Gray

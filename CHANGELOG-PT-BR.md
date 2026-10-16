@@ -26,6 +26,10 @@ Histórico das mudanças do painel e do pacote portátil.
 - Não foi possível validar esta versão no headset/dongle do usuário durante a falha. A causa do desaparecimento/reaparecimento dos endpoints continua não confirmada.
 - A versão melhora o diagnóstico e a segurança das ações, mas não é uma promessa de correção definitiva. Desativar `WavesTBVirtual` pode retirar recursos de áudio do Swarm.
 
+### Créditos
+
+- Desenvolvido com Antigravity e Codex.
+
 ## [1.0.0] — 2026-09-26
 
 - Primeira versão pública do painel PowerShell com opções de driver, monitoramento, ajustes de energia, painel de som e interface multilíngue.

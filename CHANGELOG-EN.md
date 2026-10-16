@@ -26,6 +26,10 @@ Version history for the manager and portable package.
 - This release has not been validated on the user's headset/dongle while the issue is occurring. The cause of endpoint disappearance/re-enumeration remains unconfirmed.
 - This release improves diagnostics and action safety; it does not promise a definitive fix. Disabling `WavesTBVirtual` may remove Swarm audio features.
 
+### Credits
+
+- Developed with Antigravity and Codex.
+
 ## [1.0.0] — 2026-09-26
 
 - First public PowerShell manager with driver, monitoring, power-setting, Sound panel, and multilingual options.

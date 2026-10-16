@@ -48,4 +48,4 @@ Monitoring is read-only. An endpoint event does not identify the cause; compare 
 
 ## Credits
 
-Developed by **Emerson Teles** and distributed under the MIT license; see [LICENSE](LICENSE).
+Developed with **Antigravity and Codex** and distributed under the MIT license; see [LICENSE](LICENSE).

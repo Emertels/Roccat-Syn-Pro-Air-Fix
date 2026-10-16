@@ -1,7 +1,7 @@
 {
   "pt-BR": {
     "Title": "ROCCAT SYN PRO AIR - PAINEL MESTRE MODULAR",
-    "Credit": "Desenvolvido por Emerson Teles com Antigravity (Google DeepMind)",
+    "Credit": "Desenvolvido com Antigravity e Codex",
     "Session": "Sessão iniciada em:",
     "UsbDongle": "Receptor USB Dongle",
     "UsbDisconnected": "Desconectado ou Inativo",
@@ -78,7 +78,7 @@
   },
   "en-US": {
     "Title": "ROCCAT SYN PRO AIR - MASTER MANAGER",
-    "Credit": "Developed by Emerson Teles with Antigravity (Google DeepMind)",
+    "Credit": "Developed with Antigravity and Codex",
     "Session": "Session started at:",
     "UsbDongle": "USB Dongle Receiver",
     "UsbDisconnected": "Disconnected or Inactive",
@@ -155,7 +155,7 @@
   },
   "es-ES": {
     "Title": "ROCCAT SYN PRO AIR - PANEL MAESTRO",
-    "Credit": "Desarrollado por Emerson Teles con Antigravity (Google DeepMind)",
+    "Credit": "Desarrollado con Antigravity y Codex",
     "Session": "Sesion iniciada en:",
     "UsbDongle": "Receptor USB Dongle",
     "UsbDisconnected": "Desconectado o Inactivo",
@@ -232,7 +232,7 @@
   },
   "fr-FR": {
     "Title": "ROCCAT SYN PRO AIR - GESTIONNAIRE MAITRE",
-    "Credit": "Developpe par Emerson Teles avec Antigravity (Google DeepMind)",
+    "Credit": "Développé avec Antigravity et Codex",
     "Session": "Session commencee a:",
     "UsbDongle": "Recepteur USB Dongle",
     "UsbDisconnected": "Deconnecte ou Inactif",
@@ -309,7 +309,7 @@
   },
   "de-DE": {
     "Title": "ROCCAT SYN PRO AIR - MASTER MANAGER",
-    "Credit": "Entwickelt von Emerson Teles mit Antigravity (Google DeepMind)",
+    "Credit": "Entwickelt mit Antigravity und Codex",
     "Session": "Sitzung gestartet um:",
     "UsbDongle": "USB-Dongle Empfaenger",
     "UsbDisconnected": "Getrennt oder Inaktiv",
@@ -386,7 +386,7 @@
   },
   "it-IT": {
     "Title": "ROCCAT SYN PRO AIR - GESTORE MASTER",
-    "Credit": "Sviluppato da Emerson Teles con Antigravity (Google DeepMind)",
+    "Credit": "Sviluppato con Antigravity e Codex",
     "Session": "Sessione iniziata alle:",
     "UsbDongle": "Ricevitore Dongle USB",
     "UsbDisconnected": "Disconnesso o Inattivo",
@@ -463,7 +463,7 @@
   },
   "ru-RU": {
     "Title": "ROCCAT SYN PRO AIR - MASTER MANAGER",
-    "Credit": "Разработано Emerson Teles совместно с Antigravity (Google DeepMind)",
+    "Credit": "Разработано с помощью Antigravity и Codex",
     "Session": "Сеанс начат в:",
     "UsbDongle": "USB-адаптер (Dongle)",
     "UsbDisconnected": "Отключен или неактивен",
@@ -540,7 +540,7 @@
   },
   "ja-JP": {
     "Title": "ROCCAT SYN PRO AIR - マスターマネージャー",
-    "Credit": "開発: Emerson Teles ＆ Antigravity (Google DeepMind)",
+    "Credit": "Antigravity と Codex で開発",
     "Session": "セッション開始時刻:",
     "UsbDongle": "USBドングルレシーバー",
     "UsbDisconnected": "未接続または無効",
@@ -617,7 +617,7 @@
   },
   "zh-CN": {
     "Title": "ROCCAT SYN PRO AIR - 大师管理器",
-    "Credit": "由 Emerson Teles 与 Antigravity (Google DeepMind) 联合开发",
+    "Credit": "使用 Antigravity 和 Codex 开发",
     "Session": "会话开始时间:",
     "UsbDongle": "USB发射接收器",
     "UsbDisconnected": "未连接或离线",
@@ -694,7 +694,7 @@
   },
   "ko-KR": {
     "Title": "ROCCAT SYN PRO AIR - 마스터 매니저",
-    "Credit": "개발: Emerson Teles ＆ Antigravity (Google DeepMind)",
+    "Credit": "Antigravity와 Codex로 개발",
     "Session": "세션 시작 시각:",
     "UsbDongle": "USB 동글 수신기",
     "UsbDisconnected": "연결 끊김 또는 비활성",

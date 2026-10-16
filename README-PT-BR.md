@@ -48,4 +48,4 @@ O monitoramento é somente leitura. Um evento de endpoint não identifica a caus
 
 ## Créditos
 
-Desenvolvido por **Emerson Teles**. O projeto é distribuído sob a licença MIT; consulte [LICENSE](LICENSE).
+Desenvolvido com **Antigravity e Codex**. O projeto é distribuído sob a licença MIT; consulte [LICENSE](LICENSE).
