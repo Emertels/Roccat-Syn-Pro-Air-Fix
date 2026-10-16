@@ -22,18 +22,18 @@ The published ZIP contains only `Roccat-SynPro-Manager.ps1` (embedded translatio
 
 ## Option behavior
 
-1. **Stable mode:** validates a backup before setting `HKLM:\SYSTEM\CurrentControlSet\Services\WavesTBVirtual\Start` to 4 and stopping the driver; verifies the stop. It does not change the default endpoint. Swarm Waves features may be unavailable. Option 4 (`R`) restores the saved state.
-2. **Temporary Swarm:** captures the previous startup/running state, sets Start=3, starts Waves and Swarm. When Swarm closes or monitoring is cancelled by ESC/Ctrl+C, it attempts to restore the captured state. Cancelling leaves Swarm open; force-terminating PowerShell can interrupt restoration.
-3. **Passive sentinel:** observes event 65 and AudioEndpoint PnP states for output/microphone; it does not modify the driver, PnP state, endpoint, or default output. It logs transitions to `sentinela.log` and keeps polling when no new events are present. ESC/Ctrl+C returns to the menu.
+1. **Pin default output:** enumerates active `eRender` endpoints, lets the user choose one, sets Console/Multimedia/Communications roles, and reapplies the choice if it changes while monitoring. It does not change `eCapture`, the driver, or hardware. ESC/Ctrl+C stops the guard; there is no background service/task. The setter uses Windows' IPolicyConfig COM interface, which is not publicly documented; any failure must open the `mmsys.cpl` fallback and must not be reported as success.
+2. **Temporary Swarm:** captures the prior startup/running state, sets Start=3, starts Waves and Swarm. It waits for the `ROCCAT_Swarm.exe` interface process and ignores `ROCCAT_Swarm_Monitor.exe`, which can remain resident without a window. When Swarm fully exits or monitoring is cancelled by ESC/Ctrl+C, it attempts to restore the captured state. Cancelling leaves Swarm open; force-terminating PowerShell can interrupt restoration. This option is for EQ/microphone setup, not output-switch repair.
+3. **Passive sentinel:** observes event 65, AudioEndpoint PnP states, and default `eRender` roles; it does not modify driver, PnP state, endpoint, or default output. It logs transitions to `sentinela.log` and keeps polling when no new events are present. ESC/Ctrl+C returns to the menu.
 4. **Power/communications:** snapshots USB selective-suspend values per power scheme, the prior UserDuckingPreference, and readable WMI states. Applies and checks changes; reports when Root Hubs cannot be enumerated or verified. Restore requires the needed snapshot data.
-5. **Diagnostics:** saves PnP state, endpoint parent, problem code when available, driver/service details and queried events; opens `mmsys.cpl`. The report does not prove cause.
+5. **Diagnostics:** saves PnP state, endpoint parent, problem code when available, playback defaults by role, driver/service details and queried events; opens `mmsys.cpl`. The report does not prove cause.
 6. **Language:** saves the preference in the local profile; strings come from `i18n.json` in the repository or embedded JSON in the published script.
 
 Data files are stored under `%LOCALAPPDATA%\RoccatSynProManager`, with a fallback to the script folder. ESC in the main menu exits the process.
 
 ## Maintenance rules
 
-- Preserve the Windows default output. Do not reintroduce forced headset selection, an unverified “restore” sentinel, automatic termination of Waves processes, or silent endpoint changes.
+- Preserve the user's explicit choice. Never select the headset by name/default; the guard may alter `eRender` roles only after the user chooses an endpoint and must not alter capture/microphone. Do not add background persistence without an explicit option.
 - Before changing registry, driver service, or power settings, confirm the required snapshot is complete; afterward verify the resulting state and report partial failures.
 - Do not remove or replace Windows driver files. Changes to `WavesTBVirtual` must be described as driver-service changes with possible impact on Swarm features.
 - Update every used UI/monitor string in all ten languages; confirm each array has ten values and the JSON remains valid.

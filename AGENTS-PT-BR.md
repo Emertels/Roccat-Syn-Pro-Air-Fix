@@ -22,18 +22,18 @@ O ZIP publicado contém só `Roccat-SynPro-Manager.ps1` (traduções embutidas) 
 
 ## Comportamento das opções
 
-1. **Modo estável:** faz backup validado antes de mudar `HKLM:\SYSTEM\CurrentControlSet\Services\WavesTBVirtual\Start` para 4 e parar o driver; verifica a parada. Não altera o endpoint padrão. Pode retirar recursos Waves do Swarm. Restauração do estado salvo é feita pela opção 4 (`R`).
-2. **Swarm temporário:** lê estado anterior de inicialização/execução, define Start=3, inicia Waves e Swarm. Ao fechar Swarm ou cancelar com ESC/Ctrl+C, tenta restaurar o estado lido. Cancelar o monitor deixa Swarm aberto; finalizar o processo PowerShell à força pode interromper a restauração.
-3. **Sentinela passiva:** observa evento 65 e estados dos endpoints AudioEndpoint de saída/microfone; não altera driver, PnP, endpoint ou saída padrão. Registra transições em `sentinela.log`; continua consultando mesmo quando não há novos eventos. Teclas ESC/Ctrl+C retornam ao menu.
+1. **Fixar saída padrão:** enumera endpoints ativos `eRender`, deixa o usuário escolher, configura os papéis Console/Multimedia/Communications e reaplica a escolha se detectar desvio enquanto o monitor roda. Não altera `eCapture`, driver nem hardware. ESC/Ctrl+C para o guard; não há serviço ou tarefa persistente. O setter usa a interface COM IPolicyConfig do Windows, que não é documentada publicamente; falha ao aplicar deve abrir fallback `mmsys.cpl` e ser relatada sem alegar sucesso.
+2. **Swarm temporário:** lê estado anterior de inicialização/execução, define Start=3, inicia Waves e Swarm. Aguarda o processo de interface `ROCCAT_Swarm.exe` e ignora `ROCCAT_Swarm_Monitor.exe`, que pode continuar residente sem janela. Ao fechar completamente Swarm ou cancelar com ESC/Ctrl+C, tenta restaurar o estado lido. Cancelar deixa Swarm aberto; finalizar o PowerShell à força pode interromper a restauração. A opção é para configuração EQ/microfone, não correção de saída.
+3. **Sentinela passiva:** observa evento 65, estados PnP dos endpoints AudioEndpoint e padrões `eRender` por papel; não altera driver, PnP, endpoint ou saída padrão. Registra transições em `sentinela.log`; continua consultando mesmo quando não há novos eventos. Teclas ESC/Ctrl+C retornam ao menu.
 4. **Energia/comunicações:** guarda valores de USB selective suspend por esquema de energia, valor anterior de UserDuckingPreference e estados WMI que consegue ler. Aplica e confere as mudanças; relata quando não consegue enumerar ou verificar Root Hubs. A restauração exige backup com os dados necessários.
-5. **Diagnóstico:** salva estado PnP, pai do endpoint, código de problema quando disponível, informações do driver/serviços e eventos consultados; abre `mmsys.cpl`. O relatório não prova causa.
+5. **Diagnóstico:** salva estado PnP, pai do endpoint, código de problema quando disponível, padrões de reprodução por papel, informações do driver/serviços e eventos consultados; abre `mmsys.cpl`. O relatório não prova causa.
 6. **Idioma:** grava preferência no perfil local; traduções vêm de `i18n.json` no repositório ou do JSON incorporado no script publicado.
 
 Arquivos de dados ficam em `%LOCALAPPDATA%\RoccatSynProManager`, com fallback para a pasta do script. A opção ESC no menu principal encerra o processo.
 
 ## Regras de manutenção
 
-- Preserve o default output do Windows. Não reintroduza seleção forçada do headset, sentinel que “restaura” sem comprovar, kill automático de processos Waves, ou alteração silenciosa de endpoints.
+- Preserve a escolha explícita do usuário. Nunca selecione o headset por nome/padrão; o guard só altera os papéis `eRender` após o usuário escolher um endpoint e nunca mexe em captura/microfone. Não crie persistência em background sem opção explícita.
 - Antes de mudar registro, serviço de driver ou energia, confirme que a cópia necessária é completa; depois verifique o estado resultante e informe falhas parciais.
 - Não remova nem substitua arquivos de driver do Windows. Alterações em `WavesTBVirtual` devem ser documentadas como mudanças no serviço, com possível impacto em recursos Swarm.
 - Atualize as traduções em todos os dez idiomas para cada chave usada pelo menu/monitor; confirme que cada array contém dez valores e que o JSON continua válido.

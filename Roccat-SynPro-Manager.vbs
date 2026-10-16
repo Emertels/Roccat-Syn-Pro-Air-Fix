@@ -31,7 +31,7 @@ If Not fso.FileExists(powershellPath) Then
     WScript.Quit 1
 End If
 
-arguments = "-NoProfile -ExecutionPolicy Bypass -File " & Chr(34) & scriptPath & Chr(34)
+arguments = "-NoLogo -NoProfile -ExecutionPolicy Bypass -File " & Chr(34) & scriptPath & Chr(34)
 On Error Resume Next
 shell.ShellExecute powershellPath, arguments, folder, "runas", 1
 If Err.Number <> 0 Then

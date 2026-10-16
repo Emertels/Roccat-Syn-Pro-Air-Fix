@@ -7,7 +7,7 @@
 # Auto-elevacao transparente para Administrador
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin) {
-    $elevatedArguments = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
+    $elevatedArguments = "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
     Start-Process -FilePath powershell.exe -ArgumentList $elevatedArguments -Verb RunAs
     exit
 }
@@ -192,18 +192,275 @@ function Get-EndpointProblemCode($instanceId) {
     } catch { return $null }
 }
 
+function Initialize-CoreAudioApi {
+    if ('RoccatSynProAudioFix.CoreAudio' -as [type]) { return $true }
+    $source = @'
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+
+namespace RoccatSynProAudioFix {
+    public enum EDataFlow { Render = 0, Capture = 1, All = 2 }
+    public enum ERole { Console = 0, Multimedia = 1, Communications = 2 }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct PropertyKey { public Guid FormatId; public uint PropertyId; }
+
+    [StructLayout(LayoutKind.Explicit, Size = 24)]
+    public struct PropVariant { [FieldOffset(0)] public ushort VariantType; [FieldOffset(8)] public IntPtr PointerValue; }
+
+    public sealed class EndpointInfo {
+        public string Id;
+        public string Name;
+        public int State;
+    }
+
+    [ComImport, Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    internal interface IMMDeviceEnumerator {
+        [PreserveSig] int EnumAudioEndpoints(EDataFlow flow, int stateMask, out IMMDeviceCollection devices);
+        [PreserveSig] int GetDefaultAudioEndpoint(EDataFlow flow, ERole role, out IMMDevice device);
+        [PreserveSig] int GetDevice([MarshalAs(UnmanagedType.LPWStr)] string id, out IMMDevice device);
+        [PreserveSig] int RegisterEndpointNotificationCallback(IntPtr callback);
+        [PreserveSig] int UnregisterEndpointNotificationCallback(IntPtr callback);
+    }
+
+    [ComImport, Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    internal interface IMMDevice {
+        [PreserveSig] int Activate(ref Guid iid, int clsctx, IntPtr activationParams, out IntPtr instance);
+        [PreserveSig] int OpenPropertyStore(int access, out IPropertyStore properties);
+        [PreserveSig] int GetId([MarshalAs(UnmanagedType.LPWStr)] out string id);
+        [PreserveSig] int GetState(out int state);
+    }
+
+    [ComImport, Guid("0BD7A1BE-7A1A-44DB-8397-CC5392387B5E"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    internal interface IMMDeviceCollection {
+        [PreserveSig] int GetCount(out uint count);
+        [PreserveSig] int Item(uint index, out IMMDevice device);
+    }
+
+    [ComImport, Guid("886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    internal interface IPropertyStore {
+        [PreserveSig] int GetCount(out uint count);
+        [PreserveSig] int GetAt(uint index, out PropertyKey key);
+        [PreserveSig] int GetValue(ref PropertyKey key, out PropVariant value);
+        [PreserveSig] int SetValue(ref PropertyKey key, ref PropVariant value);
+        [PreserveSig] int Commit();
+    }
+
+    [ComImport, Guid("F8679F50-850A-41CF-9C72-430F290290C8"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    internal interface IPolicyConfig {
+        [PreserveSig] int GetMixFormat([MarshalAs(UnmanagedType.LPWStr)] string id, IntPtr format);
+        [PreserveSig] int GetDeviceFormat([MarshalAs(UnmanagedType.LPWStr)] string id, int defaultFormat, IntPtr format);
+        [PreserveSig] int ResetDeviceFormat([MarshalAs(UnmanagedType.LPWStr)] string id);
+        [PreserveSig] int SetDeviceFormat([MarshalAs(UnmanagedType.LPWStr)] string id, IntPtr endpointFormat, IntPtr mixFormat);
+        [PreserveSig] int GetProcessingPeriod([MarshalAs(UnmanagedType.LPWStr)] string id, int defaultPeriod, IntPtr defaultValue, IntPtr minimumValue);
+        [PreserveSig] int SetProcessingPeriod([MarshalAs(UnmanagedType.LPWStr)] string id, IntPtr period);
+        [PreserveSig] int GetShareMode([MarshalAs(UnmanagedType.LPWStr)] string id, IntPtr mode);
+        [PreserveSig] int SetShareMode([MarshalAs(UnmanagedType.LPWStr)] string id, IntPtr mode);
+        [PreserveSig] int GetPropertyValue([MarshalAs(UnmanagedType.LPWStr)] string id, ref PropertyKey key, IntPtr value);
+        [PreserveSig] int SetPropertyValue([MarshalAs(UnmanagedType.LPWStr)] string id, ref PropertyKey key, IntPtr value);
+        [PreserveSig] int SetDefaultEndpoint([MarshalAs(UnmanagedType.LPWStr)] string id, ERole role);
+        [PreserveSig] int SetEndpointVisibility([MarshalAs(UnmanagedType.LPWStr)] string id, int visible);
+    }
+
+    public static class CoreAudio {
+        private static readonly Guid EnumeratorClass = new Guid("BCDE0395-E52F-467C-8E3D-C4579291692E");
+        private static readonly Guid PolicyConfigClass = new Guid("870AF99C-171D-4F9E-AF0D-E63DF40C2BC9");
+        private static readonly Guid FriendlyNameFormat = new Guid("A45C254E-DF1C-4EFD-8020-67D146A850E0");
+
+        private static IMMDeviceEnumerator CreateEnumerator() {
+            return (IMMDeviceEnumerator)Activator.CreateInstance(Type.GetTypeFromCLSID(EnumeratorClass, true));
+        }
+
+        private static string GetFriendlyName(IMMDevice device) {
+            IPropertyStore store = null;
+            PropVariant value = new PropVariant();
+            try {
+                int hr = device.OpenPropertyStore(0, out store);
+                if (hr < 0) Marshal.ThrowExceptionForHR(hr);
+                PropertyKey key = new PropertyKey { FormatId = FriendlyNameFormat, PropertyId = 14 };
+                hr = store.GetValue(ref key, out value);
+                if (hr < 0) Marshal.ThrowExceptionForHR(hr);
+                if (value.VariantType == 31 && value.PointerValue != IntPtr.Zero) return Marshal.PtrToStringUni(value.PointerValue);
+                return "(unnamed audio endpoint)";
+            } finally {
+                PropVariantClear(ref value);
+                if (store != null && Marshal.IsComObject(store)) Marshal.FinalReleaseComObject(store);
+            }
+        }
+
+        [DllImport("ole32.dll")]
+        private static extern int PropVariantClear(ref PropVariant value);
+
+        public static EndpointInfo[] GetActiveRenderEndpoints() {
+            IMMDeviceEnumerator enumerator = null;
+            IMMDeviceCollection collection = null;
+            List<EndpointInfo> result = new List<EndpointInfo>();
+            try {
+                enumerator = CreateEnumerator();
+                int hr = enumerator.EnumAudioEndpoints(EDataFlow.Render, 1, out collection);
+                if (hr < 0) Marshal.ThrowExceptionForHR(hr);
+                uint count = 0;
+                hr = collection.GetCount(out count);
+                if (hr < 0) Marshal.ThrowExceptionForHR(hr);
+                for (uint i = 0; i < count; i++) {
+                    IMMDevice device = null;
+                    try {
+                        hr = collection.Item(i, out device);
+                        if (hr < 0 || device == null) continue;
+                        string id;
+                        int state;
+                        hr = device.GetId(out id);
+                        if (hr < 0) continue;
+                        hr = device.GetState(out state);
+                        if (hr < 0) continue;
+                        result.Add(new EndpointInfo { Id = id, Name = GetFriendlyName(device), State = state });
+                    } finally { if (device != null && Marshal.IsComObject(device)) Marshal.FinalReleaseComObject(device); }
+                }
+                return result.ToArray();
+            } finally {
+                if (collection != null && Marshal.IsComObject(collection)) Marshal.FinalReleaseComObject(collection);
+                if (enumerator != null && Marshal.IsComObject(enumerator)) Marshal.FinalReleaseComObject(enumerator);
+            }
+        }
+
+        public static string GetDefaultRenderEndpointId(ERole role) {
+            IMMDeviceEnumerator enumerator = null;
+            IMMDevice device = null;
+            try {
+                enumerator = CreateEnumerator();
+                int hr = enumerator.GetDefaultAudioEndpoint(EDataFlow.Render, role, out device);
+                if (hr < 0 || device == null) return null;
+                string id;
+                hr = device.GetId(out id);
+                if (hr < 0) Marshal.ThrowExceptionForHR(hr);
+                return id;
+            } finally {
+                if (device != null && Marshal.IsComObject(device)) Marshal.FinalReleaseComObject(device);
+                if (enumerator != null && Marshal.IsComObject(enumerator)) Marshal.FinalReleaseComObject(enumerator);
+            }
+        }
+
+        public static bool IsRenderEndpointActive(string id) {
+            IMMDeviceEnumerator enumerator = null;
+            IMMDevice device = null;
+            try {
+                enumerator = CreateEnumerator();
+                int hr = enumerator.GetDevice(id, out device);
+                if (hr < 0 || device == null) return false;
+                int state;
+                hr = device.GetState(out state);
+                return hr >= 0 && (state & 1) == 1;
+            } finally {
+                if (device != null && Marshal.IsComObject(device)) Marshal.FinalReleaseComObject(device);
+                if (enumerator != null && Marshal.IsComObject(enumerator)) Marshal.FinalReleaseComObject(enumerator);
+            }
+        }
+
+        public static int SetDefaultRenderEndpoint(string id) {
+            object policyObject = null;
+            IPolicyConfig policy = null;
+            try {
+                policyObject = Activator.CreateInstance(Type.GetTypeFromCLSID(PolicyConfigClass, true));
+                policy = (IPolicyConfig)policyObject;
+                foreach (ERole role in new ERole[] { ERole.Console, ERole.Multimedia, ERole.Communications }) {
+                    int hr = policy.SetDefaultEndpoint(id, role);
+                    if (hr < 0) return hr;
+                }
+                return 0;
+            } finally { if (policyObject != null && Marshal.IsComObject(policyObject)) Marshal.FinalReleaseComObject(policyObject); }
+        }
+
+        public static int SetDefaultRenderEndpointForRole(string id, ERole role) {
+            object policyObject = null;
+            IPolicyConfig policy = null;
+            try {
+                policyObject = Activator.CreateInstance(Type.GetTypeFromCLSID(PolicyConfigClass, true));
+                policy = (IPolicyConfig)policyObject;
+                return policy.SetDefaultEndpoint(id, role);
+            } finally { if (policyObject != null && Marshal.IsComObject(policyObject)) Marshal.FinalReleaseComObject(policyObject); }
+        }
+    }
+}
+'@
+    try {
+        Add-Type -TypeDefinition $source -Language CSharp -ErrorAction Stop
+        return $true
+    } catch {
+        Write-Host " $((Get-Text 'AudioApiFailed' 'A API de audio do Windows nao ficou disponivel.')) $($_.Exception.Message)" -ForegroundColor Red
+        return $false
+    }
+}
+
+function Get-DefaultRenderEndpointSnapshot {
+    if (-not (Initialize-CoreAudioApi)) { return $null }
+    $roles = [ordered]@{}
+    foreach ($roleName in @('Console', 'Multimedia', 'Communications')) {
+        try {
+            $role = [Enum]::Parse([RoccatSynProAudioFix.ERole], $roleName)
+            $id = [RoccatSynProAudioFix.CoreAudio]::GetDefaultRenderEndpointId($role)
+            $roles[$roleName] = $id
+        } catch { $roles[$roleName] = $null }
+    }
+    return [pscustomobject]$roles
+}
+
+function Get-RenderEndpointName($endpointId, $endpointList = $null) {
+    if (-not $endpointId) { return (Get-Text 'NoDefaultOutput' 'nenhuma saida padrao') }
+    if ($null -eq $endpointList) {
+        try { $endpointList = [RoccatSynProAudioFix.CoreAudio]::GetActiveRenderEndpoints() } catch { $endpointList = @() }
+    }
+    $match = @($endpointList | Where-Object { $_.Id -eq $endpointId } | Select-Object -First 1)
+    if ($match.Count -gt 0) { return [string]$match[0].Name }
+    return [string]$endpointId
+}
+
+function Set-PreferredRenderEndpoint($endpointId) {
+    if (-not (Initialize-CoreAudioApi)) { return $false }
+    try {
+        if (-not [RoccatSynProAudioFix.CoreAudio]::IsRenderEndpointActive([string]$endpointId)) { return $false }
+        $hr = [RoccatSynProAudioFix.CoreAudio]::SetDefaultRenderEndpoint([string]$endpointId)
+        if ($hr -lt 0) { return $false }
+        $actual = Get-DefaultRenderEndpointSnapshot
+        return ($actual -and $actual.Console -eq $endpointId -and $actual.Multimedia -eq $endpointId -and $actual.Communications -eq $endpointId)
+    } catch { return $false }
+}
+
+function Restore-RenderEndpointSnapshot($snapshot) {
+    if (-not $snapshot -or -not (Initialize-CoreAudioApi)) { return $false }
+    $ok = $true
+    foreach ($roleName in @('Console', 'Multimedia', 'Communications')) {
+        $id = $snapshot.$roleName
+        if (-not $id) { $ok = $false; continue }
+        try {
+            $role = [Enum]::Parse([RoccatSynProAudioFix.ERole], $roleName)
+            $hr = [RoccatSynProAudioFix.CoreAudio]::SetDefaultRenderEndpointForRole([string]$id, $role)
+            if ($hr -lt 0) { $ok = $false }
+        } catch { $ok = $false }
+    }
+    $actual = Get-DefaultRenderEndpointSnapshot
+    foreach ($roleName in @('Console', 'Multimedia', 'Communications')) {
+        if ($snapshot.$roleName -and $actual.$roleName -ne $snapshot.$roleName) { $ok = $false }
+    }
+    return $ok
+}
+
 function Get-WavesDriverRunning {
+    # sc.exe devolve o estado rapidamente e também funciona em Windows onde a
+    # consulta CIM demora ou falha. O campo pode ter rótulo localizado; o estado
+    # RUNNING/STOPPED continua identificável pelo número e pelo token final.
+    try {
+        $serviceText = (sc.exe query $driverName 2>&1 | Out-String)
+        $scExitCode = $LASTEXITCODE
+        if ($scExitCode -eq 0 -and $serviceText -match '(?im):\s*\d+\s+RUNNING\b') { return $true }
+        if ($scExitCode -eq 0 -and $serviceText -match '(?im):\s*\d+\s+STOPPED\b') { return $false }
+    } catch {}
+
+    # CIM permanece como fallback quando sc.exe não consegue informar o estado.
     try {
         $driver = Get-CimInstance Win32_SystemDriver -Filter "Name='$driverName'" -ErrorAction Stop
         if ($driver -and $driver.State -eq 'Running') { return $true }
         if ($driver -and $driver.State -eq 'Stopped') { return $false }
-    } catch {}
-
-    # sc.exe e um segundo caminho de leitura para maquinas onde a consulta CIM falha.
-    try {
-        $serviceText = sc.exe query $driverName 2>&1 | Out-String
-        if ($LASTEXITCODE -eq 0 -and $serviceText -match '(?im)^\s*STATE\s*:\s*\d+\s+RUNNING\b') { return $true }
-        if ($LASTEXITCODE -eq 0 -and $serviceText -match '(?im)^\s*STATE\s*:\s*\d+\s+STOPPED\b') { return $false }
     } catch {}
     return $null
 }
@@ -471,6 +728,21 @@ function Show-DiagnosticReport {
     if ($audioDevices.Count -eq 0) { $lines.Add('Nenhum endpoint SYN Pro Air localizado.') }
 
     $lines.Add('')
+    $lines.Add('=== Saidas de reproducao padrao do Windows ===')
+    if (Initialize-CoreAudioApi) {
+        $defaultSnapshot = Get-DefaultRenderEndpointSnapshot
+        $activeRender = @()
+        try { $activeRender = @([RoccatSynProAudioFix.CoreAudio]::GetActiveRenderEndpoints()) } catch {}
+        if ($defaultSnapshot) {
+            foreach ($roleName in @('Console', 'Multimedia', 'Communications')) {
+                $id = $defaultSnapshot.$roleName
+                $name = Get-RenderEndpointName $id $activeRender
+                $lines.Add("$roleName = $name | ID: $id")
+            }
+        } else { $lines.Add('Nao foi possivel ler os papeis de reproducao.') }
+    } else { $lines.Add('API de saida padrao indisponivel.') }
+
+    $lines.Add('')
     $lines.Add('=== Dongle USB ===')
     $dongles = @(Get-PnpDevice -ErrorAction SilentlyContinue | Where-Object { $_.InstanceId -like 'USB\VID_1E7D&PID_3A3B*' })
     foreach ($device in $dongles) { $lines.Add("$($device.Status) | $($device.Class) | $($device.FriendlyName) | $($device.InstanceId)") }
@@ -614,42 +886,137 @@ function Show-Header {
     Write-Host "------------------------------------------------------------------------------" -ForegroundColor DarkCyan
 }
 
-function Invoke-ModoEstavel {
+function Invoke-OutputGuard {
     Write-Host ""
     Write-Host ">>> $((Get-Text 'Opt1Title'))..." -ForegroundColor Cyan
-    if (-not (Test-Path $regPath)) {
-        Write-Host " $((Get-Text 'DriverNotInstalled' 'Driver WavesTBVirtual nao instalado.'))" -ForegroundColor Yellow
+    if (-not (Initialize-CoreAudioApi)) {
         $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
         return
     }
 
-    if (-not (Save-SystemBackup -RequireCompletePower -RequireDriver)) {
-        Write-Host " $((Get-Text 'BackupRequired' 'Nao foi possivel confirmar a copia de seguranca; driver mantido sem alteracoes.'))" -ForegroundColor Red
+    $endpoints = @()
+    try { $endpoints = @([RoccatSynProAudioFix.CoreAudio]::GetActiveRenderEndpoints()) }
+    catch {
+        Write-Host " $((Get-Text 'AudioApiFailed' 'Nao foi possivel enumerar as saidas de audio.')) $($_.Exception.Message)" -ForegroundColor Red
         $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
         return
     }
-    $priorDriverStart = $null
-    $priorDriverRunning = Get-WavesDriverRunning
-    try { $priorDriverStart = (Get-ItemProperty -Path $regPath -Name 'Start' -ErrorAction Stop).Start } catch {}
-    if ($null -eq $priorDriverStart -or $null -eq $priorDriverRunning) {
-        Write-Host " $((Get-Text 'DriverStateUnknown' 'Nao foi possivel ler o estado atual do driver; nenhuma alteracao foi feita.'))" -ForegroundColor Red
+    if ($endpoints.Count -eq 0) {
+        Write-Host " $((Get-Text 'OutputNoEndpoints' 'Nenhuma saida de audio ativa foi encontrada.'))" -ForegroundColor Red
         $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
         return
     }
-    try {
-        Set-WavesDriverMode 4
-        Write-Host " $((Get-Text 'StableModeConfirmed' 'Driver virtual desativado e parada confirmada. Os endpoints e a saida padrao nao foram forcados.'))" -ForegroundColor Green
-    } catch {
-        Write-Host " $((Get-Text 'ActionFailed' 'Nao foi possivel confirmar o modo estavel.')) $($_.Exception.Message)" -ForegroundColor Red
-        if (Restore-WavesDriverState $priorDriverStart $priorDriverRunning) {
-            Write-Host " $((Get-Text 'DriverStateRestored' 'O estado do driver antes da tentativa foi restaurado.'))" -ForegroundColor Yellow
-        } else {
-            Write-Host " $((Get-Text 'DriverRestoreFailed' 'Nao foi possivel confirmar a restauracao do estado anterior do driver.'))" -ForegroundColor Red
-        }
+
+    $initialDefaults = Get-DefaultRenderEndpointSnapshot
+    Write-Host " $((Get-Text 'OutputChooseHeading' 'Escolha a saida que deve continuar como padrao:'))" -ForegroundColor White
+    for ($i = 0; $i -lt $endpoints.Count; $i++) {
+        $endpoint = $endpoints[$i]
+        $isDefault = $initialDefaults -and ($endpoint.Id -eq $initialDefaults.Console -or $endpoint.Id -eq $initialDefaults.Multimedia -or $endpoint.Id -eq $initialDefaults.Communications)
+        $tag = if ($isDefault) { Get-Text 'OutputDefaultTag' '[padrao atual]' } else { '' }
+        Write-Host ("  [{0}] {1} {2}" -f ($i + 1), $endpoint.Name, $tag) -ForegroundColor $(if ($isDefault) { 'Yellow' } else { 'Gray' })
     }
+    $selection = Read-MenuChoice (Get-Text 'OutputSelectPrompt' 'Numero da saida desejada (ESC cancela):')
+    if ($selection -eq '__ESC__') { return }
+    $selectedIndex = 0
+    if (-not [int]::TryParse([string]$selection, [ref]$selectedIndex) -or $selectedIndex -lt 1 -or $selectedIndex -gt $endpoints.Count) {
+        Write-Host " $((Get-Text 'InvalidOption' 'Opcao invalida.'))" -ForegroundColor Yellow
+        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+        return
+    }
+    $target = $endpoints[$selectedIndex - 1]
+    Write-Host " $((Get-Text 'OutputApplying' 'Aplicando a saida escolhida e confirmando os tres papeis de reproducao...'))" -ForegroundColor Cyan
+    if (-not (Set-PreferredRenderEndpoint $target.Id)) {
+        $rolledBack = Restore-RenderEndpointSnapshot $initialDefaults
+        Write-Host " $((Get-Text 'OutputSetFailed' 'O Windows nao confirmou a saida escolhida. Abrindo o painel classico para selecao manual.'))" -ForegroundColor Red
+        if ($rolledBack) { Write-Host " $((Get-Text 'OutputPreviousDefaultRestored' 'O padrao anterior de reproducao foi restaurado.'))" -ForegroundColor Yellow }
+        else { Write-Host " $((Get-Text 'OutputPartialChange' 'Nao foi possivel confirmar a restauracao de todos os papeis de reproducao. Confira o painel de som.'))" -ForegroundColor Yellow }
+        try { Start-Process -FilePath "$env:SystemRoot\System32\control.exe" -ArgumentList 'mmsys.cpl' -ErrorAction Stop } catch {}
+        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+        return
+    }
+
+    $guardLog = Join-Path $diagnosticDir 'default-output-guard.log'
+    $targetName = [string]$target.Name
+    $startedAt = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+    Add-Content -LiteralPath $guardLog -Value "`r`n=== Protecao iniciada: $startedAt | saida='$targetName' | ID='$($target.Id)' ===" -Encoding UTF8 -ErrorAction SilentlyContinue
+    Write-Host " $((Get-Text 'OutputMonitorRunning' 'Saida protegida. ESC volta ao menu; a protecao funciona enquanto esta janela permanecer aberta.'))" -ForegroundColor Green
+    Write-Host " $((Get-Text 'OutputMicUntouched' 'Somente a reproducao foi alterada; o dispositivo padrao do microfone nao foi modificado.'))" -ForegroundColor Gray
+    Write-Host " $((Get-Text 'OutputLogPath' 'Registro de mudancas:')) $guardLog" -ForegroundColor DarkGray
     Write-Host ""
-    Write-Host "$((Get-Text 'PressKey' 'Pressione qualquer tecla para voltar...'))" -ForegroundColor Gray
-    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+
+    $oldTreatControlC = $false
+    $lastMismatch = $null
+    $lastAttempt = [DateTime]::MinValue
+    $lastAttemptOutcome = $null
+    try { $oldTreatControlC = [Console]::TreatControlCAsInput; [Console]::TreatControlCAsInput = $true } catch {}
+    try {
+        while ($true) {
+            try {
+                if ([Console]::KeyAvailable) {
+                    $pressed = [Console]::ReadKey($true)
+                    $isCtrlC = ($pressed.Key -eq [ConsoleKey]::C -and (([int]$pressed.Modifiers -band [int][ConsoleModifiers]::Control) -ne 0))
+                    if ($pressed.Key -eq [ConsoleKey]::Escape -or $isCtrlC) { break }
+                }
+            } catch {}
+
+            $defaults = Get-DefaultRenderEndpointSnapshot
+            $changedRoles = @()
+            if ($defaults) {
+                foreach ($roleName in @('Console', 'Multimedia', 'Communications')) {
+                    if ($defaults.$roleName -ne $target.Id) { $changedRoles += $roleName }
+                }
+            } else { $changedRoles = @('Console', 'Multimedia', 'Communications') }
+
+            if ($changedRoles.Count -gt 0) {
+                $signature = if ($defaults) { ($changedRoles | ForEach-Object { "$_=$($defaults.$_)" }) -join '; ' } else { 'default endpoint unavailable' }
+                $now = Get-Date
+                if ($signature -ne $lastMismatch) {
+                    $detail = "[$($now.ToString('yyyy-MM-dd HH:mm:ss.fff'))] Troca detectada ($signature). Alvo='$targetName'"
+                    Write-Host " $detail" -ForegroundColor Red
+                    Add-Content -LiteralPath $guardLog -Value $detail -Encoding UTF8 -ErrorAction SilentlyContinue
+                    $lastMismatch = $signature
+                    $lastAttemptOutcome = $null
+                }
+                if (($now - $lastAttempt).TotalMilliseconds -ge 1000) {
+                    $lastAttempt = $now
+                    if (-not [RoccatSynProAudioFix.CoreAudio]::IsRenderEndpointActive([string]$target.Id)) {
+                        if ($lastAttemptOutcome -ne 'unavailable') {
+                            $detail = "[$($now.ToString('yyyy-MM-dd HH:mm:ss.fff'))] A saida alvo esta temporariamente indisponivel; aguardando reaparecer."
+                            Write-Host " $detail" -ForegroundColor Yellow
+                            Add-Content -LiteralPath $guardLog -Value $detail -Encoding UTF8 -ErrorAction SilentlyContinue
+                        }
+                        $lastAttemptOutcome = 'unavailable'
+                    } elseif (Set-PreferredRenderEndpoint $target.Id) {
+                        $detail = "[$($now.ToString('yyyy-MM-dd HH:mm:ss.fff'))] Saida padrao restabelecida para '$targetName'."
+                        Write-Host " $detail" -ForegroundColor Green
+                        Add-Content -LiteralPath $guardLog -Value $detail -Encoding UTF8 -ErrorAction SilentlyContinue
+                        $lastAttemptOutcome = 'restored'
+                    } else {
+                        if ($lastAttemptOutcome -ne 'failed') {
+                            $detail = "[$($now.ToString('yyyy-MM-dd HH:mm:ss.fff'))] O Windows nao confirmou a troca para '$targetName'; nova tentativa em 1 s."
+                            Write-Host " $detail" -ForegroundColor Yellow
+                            Add-Content -LiteralPath $guardLog -Value $detail -Encoding UTF8 -ErrorAction SilentlyContinue
+                        }
+                        $lastAttemptOutcome = 'failed'
+                    }
+                }
+            } else {
+                $lastMismatch = $null
+                $lastAttemptOutcome = $null
+            }
+            Start-Sleep -Milliseconds 500
+        }
+    } finally { try { [Console]::TreatControlCAsInput = $oldTreatControlC } catch {} }
+
+    # Deixa a escolha do usuario como padrao ao sair, mas nao cria tarefa nem servico em segundo plano.
+    $leftAsSelected = Set-PreferredRenderEndpoint $target.Id
+    if ($leftAsSelected) {
+        Write-Host " $((Get-Text 'OutputMonitorStopped' 'Monitor encerrado; a saida escolhida continua como padrao.'))" -ForegroundColor Green
+    } else {
+        Write-Host " $((Get-Text 'OutputTargetUnavailable' 'Monitor encerrado; nao foi possivel reaplicar a saida escolhida neste momento.'))" -ForegroundColor Yellow
+    }
+    Add-Content -LiteralPath $guardLog -Value "=== Protecao encerrada: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') ===" -Encoding UTF8 -ErrorAction SilentlyContinue
+    Write-Host ""
 }
 
 function Get-SwarmInstallRoots {
@@ -685,6 +1052,13 @@ function Find-SwarmExecutable {
     return $candidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
 }
 
+function Get-RoccatSwarmUiProcesses {
+    # ROCCAT_Swarm_Monitor.exe e auxiliar persistente da bandeja e pode ficar
+    # aberto sem a interface. Monitore apenas ROCCAT_Swarm.exe para detectar
+    # quando o usuario encerrou a janela/aplicativo principal.
+    return @(Get-Process -Name 'ROCCAT_Swarm' -ErrorAction SilentlyContinue)
+}
+
 function Find-WavesExecutable {
     $candidates = New-Object System.Collections.Generic.List[string]
     foreach ($root in (Get-SwarmInstallRoots)) {
@@ -697,21 +1071,55 @@ function Find-WavesExecutable {
     return $candidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
 }
 
-function Set-WavesDriverMode($startValue, [switch]$StartNow) {
+function Wait-WavesDriverState([bool]$desiredRunning, [int]$timeoutMs = 5000) {
+    $timer = [System.Diagnostics.Stopwatch]::StartNew()
+    do {
+        $running = Get-WavesDriverRunning
+        if ($null -ne $running -and [bool]$running -eq $desiredRunning) { return $true }
+        if ($timer.ElapsedMilliseconds -ge $timeoutMs) { break }
+        Start-Sleep -Milliseconds 250
+    } while ($timer.ElapsedMilliseconds -lt $timeoutMs)
+    return $false
+}
+
+function Invoke-WavesDriverMode($startValue, [bool]$desiredRunning, [int]$timeoutMs = 5000) {
     if (-not (Test-Path $regPath)) { throw (Get-Text 'DriverNotInstalled' 'Driver WavesTBVirtual nao instalado.') }
     Set-ItemProperty -Path $regPath -Name 'Start' -Value ([int]$startValue) -ErrorAction Stop
     $actual = (Get-ItemProperty -Path $regPath -Name 'Start' -ErrorAction Stop).Start
     if ([int]$actual -ne [int]$startValue) { throw (Get-Text 'ActionFailed' 'O valor de inicializacao do driver nao foi confirmado.') }
-    if ($StartNow) { sc.exe start $driverName 2>&1 | Out-Null }
-    else { sc.exe stop $driverName 2>&1 | Out-Null }
-    $verified = $false
-    for ($attempt = 0; $attempt -lt 10; $attempt++) {
-        Start-Sleep -Seconds 1
-        $serviceRunning = Get-WavesDriverRunning
-        if ($null -ne $serviceRunning -and [bool]$serviceRunning -eq [bool]$StartNow) { $verified = $true; break }
+
+    $commandOutput = ''
+    $commandExitCode = 0
+    $currentRunning = Get-WavesDriverRunning
+    if ($null -eq $currentRunning -or [bool]$currentRunning -ne $desiredRunning) {
+        $verb = if ($desiredRunning) { 'start' } else { 'stop' }
+        $commandOutput = (sc.exe $verb $driverName 2>&1 | Out-String).Trim()
+        $commandExitCode = $LASTEXITCODE
     }
-    if (-not $verified -and $StartNow) { throw (Get-Text 'DriverStartFailed' 'O driver nao iniciou; veja o diagnostico.') }
-    if (-not $verified -and -not $StartNow) { throw (Get-Text 'DriverStopFailed' 'O driver continua em execucao; veja o diagnostico.') }
+
+    $confirmed = Wait-WavesDriverState $desiredRunning $timeoutMs
+    $observedRunning = Get-WavesDriverRunning
+    return [pscustomobject]@{
+        StartValue = [int]$actual
+        DesiredRunning = $desiredRunning
+        Running = $observedRunning
+        Confirmed = $confirmed
+        CommandExitCode = $commandExitCode
+        CommandOutput = $commandOutput
+    }
+}
+
+function Set-WavesDriverMode($startValue, [switch]$StartNow, [int]$TimeoutMs = 5000) {
+    $desiredRunning = [bool]$StartNow
+    $attempt = Invoke-WavesDriverMode $startValue $desiredRunning $TimeoutMs
+    if (-not $attempt.Confirmed -and $desiredRunning) {
+        $detail = if ($attempt.CommandOutput) { " $($attempt.CommandOutput)" } else { '' }
+        throw "$(Get-Text 'DriverStartFailed' 'O driver nao iniciou; veja o diagnostico.')$detail"
+    }
+    if (-not $attempt.Confirmed) {
+        $detail = if ($attempt.CommandOutput) { " $($attempt.CommandOutput)" } else { '' }
+        throw "$(Get-Text 'DriverStopFailed' 'O driver continua ativo ou a parada nao foi confirmada.')$detail"
+    }
 }
 
 function Restore-WavesDriverState($startValue, $wasRunning) {
@@ -733,7 +1141,7 @@ function Invoke-SwarmAutoPilot {
         return
     }
 
-    if (-not (Save-SystemBackup -RequireCompletePower -RequireDriver)) {
+    if (-not (Save-SystemBackup -RequireDriver)) {
         Write-Host " $((Get-Text 'BackupRequired' 'Nao foi possivel confirmar a copia de seguranca; nenhuma alteracao foi feita.'))" -ForegroundColor Red
         $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
         return
@@ -747,11 +1155,27 @@ function Invoke-SwarmAutoPilot {
         return
     }
 
+    $swarmWasRunning = @(Get-RoccatSwarmUiProcesses).Count -gt 0
     try {
         Set-WavesDriverMode 3 -StartNow
         $wavesExe = Find-WavesExecutable
         if ($wavesExe -and -not (Get-Process -Name 'ROCCAT_Waves_Driver' -ErrorAction SilentlyContinue)) { Start-Process -FilePath $wavesExe -ErrorAction Stop }
-        if (-not (Get-Process -Name 'ROCCAT_Swarm' -ErrorAction SilentlyContinue)) { Start-Process -FilePath $swarmExe -ErrorAction Stop }
+        if (-not $swarmWasRunning) { Start-Process -FilePath $swarmExe -ErrorAction Stop }
+
+        # Aguarda a interface principal. O Monitor auxiliar pode estar sempre
+        # residente e nao deve impedir a restauracao apos fechar o Swarm.
+        $launchTimer = [System.Diagnostics.Stopwatch]::StartNew()
+        while (@(Get-RoccatSwarmUiProcesses).Count -eq 0 -and $launchTimer.ElapsedMilliseconds -lt 8000) {
+            Start-Sleep -Milliseconds 250
+        }
+        if (@(Get-RoccatSwarmUiProcesses).Count -eq 0) {
+            $restored = Restore-WavesDriverState $priorDriverStart $priorDriverRunning
+            Write-Host " $((Get-Text 'SwarmStartTimeout' 'O processo do Swarm nao apareceu em 8 segundos; a configuracao anterior do driver sera restaurada.'))" -ForegroundColor Red
+            if ($restored) { Write-Host " $((Get-Text 'DriverStateRestored' 'Estado anterior do driver restaurado e verificado.'))" -ForegroundColor Yellow }
+            else { Write-Host " $((Get-Text 'DriverRestoreFailed' 'Nao foi possivel confirmar a restauracao do estado anterior do driver.'))" -ForegroundColor Red }
+            $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+            return
+        }
     } catch {
         $restored = Restore-WavesDriverState $priorDriverStart $priorDriverRunning
         Write-Host " $((Get-Text 'ActionFailed' 'Falha ao iniciar o Swarm/driver.')) $($_.Exception.Message)" -ForegroundColor Red
@@ -760,7 +1184,7 @@ function Invoke-SwarmAutoPilot {
         return
     }
 
-    Write-Host " $((Get-Text 'SwarmAutopilotRunning' 'Modo temporario ativo. Ao fechar o Swarm, o estado anterior do driver sera restaurado; ESC interrompe e tambem restaura.'))" -ForegroundColor Cyan
+    Write-Host " $((Get-Text 'SwarmAutopilotRunning' 'Modo temporario apenas para configurar EQ/microfone; nao corrige o audio. Saia totalmente do Swarm ou pressione ESC para restaurar o driver.'))" -ForegroundColor Cyan
     Write-Host ""
 
     $oldTreatControlC = $false
@@ -779,8 +1203,7 @@ function Invoke-SwarmAutoPilot {
                     }
                 }
             } catch {}
-            $swarmRunning = Get-Process -Name 'ROCCAT_Swarm' -ErrorAction SilentlyContinue
-            if (-not $swarmRunning) {
+            if (@(Get-RoccatSwarmUiProcesses).Count -eq 0) {
                 $swarmClosed = $true
                 break
             }
@@ -810,10 +1233,16 @@ function Invoke-SentinelaAtiva {
     Write-Host ""
 
     $lastSignature = $null
+    $lastDefaultSignature = $null
     $sentinelLog = Join-Path $diagnosticDir 'sentinela.log'
     $sentinelStartedAt = Get-Date
     $lastAudioEventRecord = 0
     $audioLogUnavailableReported = $false
+    $defaultApiReady = Initialize-CoreAudioApi
+    if (-not $defaultApiReady) {
+        $line = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss.fff')] API de saida padrao indisponivel; monitorando apenas eventos Audio e estados PnP."
+        Add-Content -LiteralPath $sentinelLog -Value $line -Encoding UTF8 -ErrorAction SilentlyContinue
+    }
     try {
         $audioLog = Get-WinEvent -ListLog 'Microsoft-Windows-Audio/Operational' -ErrorAction Stop
         if (-not $audioLog.IsEnabled) { $audioLogUnavailableReported = $true }
@@ -876,6 +1305,24 @@ function Invoke-SentinelaAtiva {
             Write-Host " $line" -ForegroundColor $color
             Add-Content -LiteralPath $sentinelLog -Value $line -Encoding UTF8 -ErrorAction SilentlyContinue
             $lastSignature = $signature
+        }
+
+        # A transicao PnP e a selecao da saida padrao sao eventos diferentes.
+        # Registra os tres papeis de reproducao para mostrar quando o Windows
+        # volta de fato para o headset; endpoints de captura nao sao modificados.
+        if ($defaultApiReady) {
+            $defaultSnapshot = Get-DefaultRenderEndpointSnapshot
+            if ($defaultSnapshot) {
+                $defaultSignature = "Console=$($defaultSnapshot.Console)|Multimedia=$($defaultSnapshot.Multimedia)|Communications=$($defaultSnapshot.Communications)"
+                if ($defaultSignature -ne $lastDefaultSignature) {
+                    $activeRender = @()
+                    try { $activeRender = @([RoccatSynProAudioFix.CoreAudio]::GetActiveRenderEndpoints()) } catch {}
+                    $defaultLine = "[$now] DEFAULT_RENDER: Console=$(Get-RenderEndpointName $defaultSnapshot.Console $activeRender) | Multimedia=$(Get-RenderEndpointName $defaultSnapshot.Multimedia $activeRender) | Communications=$(Get-RenderEndpointName $defaultSnapshot.Communications $activeRender) | IDs: $defaultSignature"
+                    Write-Host " $defaultLine" -ForegroundColor Yellow
+                    Add-Content -LiteralPath $sentinelLog -Value $defaultLine -Encoding UTF8 -ErrorAction SilentlyContinue
+                    $lastDefaultSignature = $defaultSignature
+                }
+            }
         }
         Start-Sleep -Seconds 1
     }
@@ -1020,7 +1467,7 @@ while ($true) {
     $choice = Read-MenuChoice (Get-Text 'Prompt' 'Escolha uma opcao (ESC para sair):')
     
     switch ($choice) {
-        '1' { Invoke-ModoEstavel }
+        '1' { Invoke-OutputGuard }
         '2' { Invoke-SwarmAutoPilot }
         '3' { Invoke-SentinelaAtiva }
         '4' { Invoke-FixGlobal }

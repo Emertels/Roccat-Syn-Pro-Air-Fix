@@ -1,35 +1,43 @@
 # ROCCAT Syn Pro Air — audio diagnostics and manager
 
-A portable utility for investigating ROCCAT Syn Pro Air audio endpoint changes and applying selected reversible settings on Windows 10 and 11.
+A portable utility for holding the user's chosen playback output, investigating ROCCAT Syn Pro Air endpoint changes, and applying selected reversible settings on Windows 10 and 11.
 
 [![Version 1.2.0](https://img.shields.io/badge/version-1.2.0-blue)](https://github.com/Emertels/Roccat-Syn-Pro-Air-Fix/releases/tag/v1.2.0) · [Português (Brasil)](README.md) · [Changelog](CHANGELOG-EN.md)
 
-> **Important limitation:** this release improves diagnostics and makes the panel's actions more careful. It does not prove the cause of disconnects or promise a permanent fix. Windows Audio event 65 records a state change; by itself, it does not identify which program, driver, or component initiated it.
+> **Important limitation:** option 1 is a temporary guard. While the panel stays open, it reapplies the playback output you choose if Windows switches to another device. This works around the automatic switch but does not identify or repair the cause of the headset endpoint disappearing and returning. Audio event 65 records a state change but does not identify who initiated it.
 
 ## What the available evidence says
 
-In the reported case, the USB dongle remains connected while Windows removes and re-enumerates the headset/microphone endpoint. That points to a Windows audio endpoint state change, but a dongle with PnP status `OK` does not prove that the wireless headset is powered on, that its radio link is stable, or that audio is working. Possible areas to compare include the `WavesTBVirtual` driver, Swarm, the USB path, and Windows audio services.
+In the reported case, the log showed the output and microphone endpoints cycling between disabled and active with `ProblemCode=0`, while the dongle remained listed. This confirms audio endpoint state changes, but does not identify whether they began in the driver, Swarm, USB path, wireless link, or Windows audio services. The updated trace separately records when Windows changes the default playback device.
 
-The panel does not select the Syn Pro Air as the default output. It cannot detect whether the wireless headset itself is powered on when only the dongle is connected.
+The panel never selects the headset automatically: in option 1, you explicitly choose the output to hold. The guard changes only the three Windows playback roles; it leaves the default capture/microphone device untouched. It runs only while the panel is open. After ESC, the selected output remains the default, but Windows or an application may change it again later.
+
+Changing the playback default uses a Windows policy interface that is not publicly documented. If Windows does not confirm the change, the script restores the previous roles when possible and opens `mmsys.cpl` for manual selection. Per-app outputs are not overridden by this guard.
+
+## Technical basis
+
+Windows Core Audio queries the default endpoint by direction and role (`Console`, `Multimedia`, or `Communications`). Its documentation treats a default-endpoint change and an endpoint-state change as separate notifications. The report therefore records these signals separately; neither alone identifies which program initiated the change. Endpoint IDs are treated as opaque identifiers, as Microsoft documents.
+
+References: [querying the default endpoint](https://learn.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nf-mmdeviceapi-immdeviceenumerator-getdefaultaudioendpoint), [default-device-change notification](https://learn.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nf-mmdeviceapi-immnotificationclient-ondefaultdevicechanged), [endpoint-state notification](https://learn.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nf-mmdeviceapi-immnotificationclient-ondevicestatechanged), and [endpoint state values](https://learn.microsoft.com/en-us/windows/win32/coreaudio/device-state-xxx-constants). The private interface used to set the default is not part of the documented public API; compatibility depends on the Windows implementation.
 
 ## Menu
 
 | Option | What it does | Effects and limits |
 |---|---|---|
-| **1 — Stable mode** | Saves or checks a snapshot, then attempts to stop `WavesTBVirtual`, set its startup type to disabled, and verify the result. | May disable Swarm Waves audio features. It does not select a default output or guarantee stability. Option 4 can restore the saved state. |
-| **2 — Temporary Swarm** | Captures the driver's prior state, enables/starts Waves, and opens Swarm. When Swarm closes, it attempts to restore the prior state. | `ESC` or `Ctrl+C` stops monitoring and also attempts to restore the driver; Swarm remains open and may lose Waves features. Force-closing the console/process can prevent automatic restoration. |
-| **3 — Passive monitoring** | Watches event 65 in `Microsoft-Windows-Audio/Operational` and the PnP states of the output and microphone endpoints. | Does not change the driver, endpoints, or default output. `ESC` or `Ctrl+C` returns to the menu. The log is `%LOCALAPPDATA%\RoccatSynProManager\diagnostics\sentinela.log`. |
+| **1 — Pin default output** | Lists active outputs; you choose one. The panel sets it as default for Console, Multimedia, and Communications and reapplies it if it changes while monitoring is open. | Does not change the microphone or Waves driver. The guard stops on ESC/Ctrl+C; the chosen output remains default afterward. Changes are logged in `default-output-guard.log`. |
+| **2 — Temporary Swarm** | Captures the driver's prior state, enables/starts Waves, and opens Swarm. It waits for the `ROCCAT_Swarm.exe` interface process and ignores `ROCCAT_Swarm_Monitor.exe`, which can stay resident in the background. | For EQ/microphone setup only; it does not fix output switching. Exit Swarm fully from its tray icon or use ESC/Ctrl+C to restore the driver. Cancelling leaves Swarm open. |
+| **3 — Passive monitoring** | Watches event 65, endpoint PnP states, and the Console, Multimedia, and Communications playback defaults. | Read-only: does not change the driver, endpoints, microphone, or default output. ESC/Ctrl+C returns to the menu. The log is `%LOCALAPPDATA%\RoccatSynProManager\diagnostics\sentinela.log`. |
 | **4 — USB power and communications** | Saves a snapshot and adjusts USB selective suspend across power plans, the current user's communications ducking preference, and—when WMI exposes it—Root Hub power saving. | Verified settings and the snapshot are stored in `%LOCALAPPDATA%\RoccatSynProManager\system-backup.json`. `R` restores the snapshot, `Enter` applies/reapplies, and `Q` cancels. It may not resolve the disconnects. |
-| **5 — Diagnostics and Sound panel** | Writes a report with PnP endpoints, driver details, recent audio/USB events, and opens `mmsys.cpl`. | The report is saved under `diagnostics`. Review it before sharing: it includes the computer name, device IDs, and local events. |
+| **5 — Diagnostics and Sound panel** | Writes a report with PnP endpoints, driver details, recent audio/USB events, playback defaults by role, and opens `mmsys.cpl`. | The report is saved under `diagnostics`. Review it before sharing: it includes the computer name, device IDs, and local events. |
 | **6 — Language** | Selects one of ten languages; automatic detection is used initially. | Translations in the portable release are embedded in the `.ps1`; the selected language is stored in the user's local profile. |
 
-Option 1 changes the Waves driver service configuration in the Registry and stops the driver service. The saved state can be restored, but EQ, surround, mic monitoring, or other Swarm features may be affected. Check playback, microphone, and Swarm after changing settings. This utility does not guarantee LEDs or other controls.
+To protect your speakers, choose them in option 1 and leave the panel open while using the PC. If the selected output becomes unavailable, the script waits for it to return and logs the state. Option 2 may temporarily change the Waves driver and affect Swarm effects. Option 1 does not change capture/microphone; no option guarantees LEDs or other controls.
 
 ## Start the tool
 
 1. Download `Roccat-Syn-Pro-Air-Fix-v1.2.0-Portable.zip` from the [release page](https://github.com/Emertels/Roccat-Syn-Pro-Air-Fix/releases/tag/v1.2.0) and extract both files into one folder.
 2. Open **`Roccat-SynPro-Manager.vbs`**. It requests elevation through UAC and starts PowerShell without an intermediate CMD window.
-3. Read each prompt before choosing an option. `ESC` in the main menu closes the panel; `ESC` in a monitoring option returns to the menu.
+3. To keep playback from switching back to the headset during a session, choose **1**, select your speakers, and leave the panel open. `ESC` stops the guard and returns to the menu; `ESC` in the main menu closes the panel.
 
 This is a portable package, not an installer. It contains only the PowerShell script and the VBS launcher. Administrator privileges are required for options that change the driver or system settings. Windows may show a security prompt for downloaded scripts; verify the source and contents before allowing it to run.
 
@@ -37,7 +45,7 @@ This is a portable package, not an installer. It contains only the PowerShell sc
 
 Configuration, backups, and diagnostics are stored in `%LOCALAPPDATA%\RoccatSynProManager` (with a fallback to the script folder if the user profile is unavailable). Options that modify settings verify them before/after whenever Windows exposes a query path. Option 4 can restore the snapshot; do not delete `system-backup.json` before restoring.
 
-Monitoring is read-only. An endpoint event does not identify the cause; compare report timestamps with PnP and USB/Kernel-PnP events for more evidence. To investigate the original issue, run option 3 before and during the instability, then generate the option 5 report.
+Option 3 is read-only and separates endpoint reactivation from an actual default-output change. An event still does not identify the responsible program; compare report timestamps with PnP and USB/Kernel-PnP events. Logs and backups are under `%LOCALAPPDATA%\RoccatSynProManager`.
 
 ## Repository files
 
