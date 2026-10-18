@@ -5,20 +5,24 @@
 ### Correção principal
 
 - A opção 1 atua em **Waves Audio Services (`WavesTBSvc`)**, componente isolado por testes de parada/início na máquina investigada. Não depende de parar o driver de kernel que falhava na versão anterior.
-- Fluxo em quatro etapas: cópia original, desativação/parada do serviço, seleção explícita da saída e observação de 30 segundos. A configuração permanece salva no Windows sem exigir painel aberto.
+- Fluxo em quatro etapas: cópia original, desativação/parada do serviço, conferência dos dispositivos sem seleção de saída e observação de 30 segundos. A configuração permanece salva no Windows sem exigir painel aberto.
 - A aplicação e a estabilidade são verificadas separadamente. Interrupção, eventos inacessíveis ou novas alterações impedem confirmação de estabilidade. O relatório registra os valores reais.
-- **R** restaura o serviço original; **P** mantém disponível o guardião temporário de saída. Nenhum modo escolhe o headset automaticamente ou altera o microfone padrão.
+- **R → W** restaura o serviço original. A opção 1 não solicita seleção de saída e não troca padrões de reprodução/captura. Verifica headset, microfone e dispositivos antes ativos; perda de disponibilidade tenta restaurar o serviço e registra a falha.
 
-### Melhorias nas demais opções
+### Interface e menu simplificados
 
-- Swarm temporário salva serviço, driver e padrões de reprodução; restaura no bloco finally e recupera sessões interrompidas na próxima abertura. Auxiliares iniciados pela sessão são identificados por PID, caminho e horário. Falhas mantêm a cópia.
-- A opção 2 informa que reativar Waves pode trazer o ciclo de volta; fechar apenas a janela para a bandeja não encerra necessariamente o Swarm.
-- Monitoramento passivo inclui mudanças do serviço e separa estados dos endpoints de trocas de saída. Consulta PnP compartilhada reduz trabalho repetido.
-- Energia e comunicações têm restauração independente do driver. Uma falha de leitura do driver não bloqueia essa opção.
-- Diagnóstico inclui configuração do serviço, processos relevantes e padrões de captura, além de PnP, reprodução e eventos.
-- Preferência de idioma grava primeiro no perfil usado pela leitura; dez traduções incorporadas no PS1 portátil.
-- Lançador VBS direto para PowerShell, cópias independentes por finalidade e mensagens sem promessas de “restauração” não confirmada.
-- README e guias de manutenção em português e inglês atualizados. ZIP contém somente PS1 e VBS, sem JSON separado, documentação ou BAT.
+- Opção 1 executa diretamente com **1 + Enter**, sem confirmação extra e sem escolher ou impor um dispositivo padrão. Você troca a saída manualmente no Windows.
+- Menu atual: **1 correção; 2 monitoramento; 3 diagnóstico; 4 idioma; R restauração; 0 sair**.
+- Swarm temporário e aplicação de ajustes USB/energia retirados do menu. Recuperação de sessões antigas e restauração de ajustes de energia preservadas por compatibilidade.
+- A opção R oferece **W** para restaurar o serviço Waves e **E** para restaurar a cópia antiga de energia/comunicações.
+- Português revisado com acentos e cedilha nos menus, etapas, dicas e diagnósticos, preservando UTF-8 com BOM.
+- Barra sobreposta do PowerShell substituída por uma barra de porcentagem e tempo abaixo da etapa, atualizada na mesma linha. Interromper não mostra 100% artificialmente.
+- Verificação de disponibilidade via Core Audio: headset, microfone e dispositivos antes ativos devem permanecer disponíveis. Perda de disponibilidade tenta restaurar o serviço e registra a falha.
+- Cabeçalho consulta a API de áudio para não confundir PnP Unknown com endpoint desativado. Consultas de planos de energia retiradas da inicialização.
+- Após reativar o headset manualmente, o usuário relatou que o ciclo parou. Uma leitura posterior mostrou headset, microfone e CREATIVE ativos; isso não comprova áudio audível.
+- Código e textos dos fluxos retirados foram removidos; dez idiomas incorporados ao PS1, com salvamento da preferência no perfil.
+- Monitoramento passivo e diagnósticos preservados. README e guias técnicos em português/inglês alinhados ao menu atual.
+- ZIP contém somente PS1 e VBS, sem JSON separado, documentação ou BAT.
 
 ### Evidência e limites
 

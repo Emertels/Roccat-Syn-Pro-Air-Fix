@@ -10,12 +10,12 @@ Applies to this repository's manager, translations, launcher and packaging. Keep
 
 ## Implementation contract
 
-1. Option 1 snapshots the exact `WavesTBSvc` service, saves the baseline once, disables/stops it, applies an explicitly selected active render endpoint to all three roles and observes for 30 seconds without reapplying the default. Success requires service readback, complete observation, event availability, zero changes/off-target samples/state events, unchanged capture defaults and matching final render roles. Applied configuration and confirmed stability are separate results. Before application completes, failures attempt to restore prior service/render state. R restores the service baseline; P opens the optional session guard. Do not disable `WavesTBVirtual` as part of option 1.
-2. Option 2 records temporary driver/service/render state before mutation, enables Waves and opens Swarm. Watch `ROCCAT_Swarm.exe`, not its resident monitor. A finally block restores prior state on monitored exit or ESC/Ctrl+C. Only terminate helpers launched by this session after matching PID, path and start time. Interrupted sessions recover on next launch; retain snapshots on service/driver restoration failure. Playback restoration failures must also be reported. Waves cycling can return while the service is temporarily active.
-3. Passive monitoring records event 65, PnP transitions, render defaults and service changes without altering them. Keep polling if there are no events. ESC/Ctrl+C returns to the menu.
-4. Power/communications settings have their own backup and verification. Restoring them must not modify Waves driver/service state. Do not require a readable kernel-driver state to adjust power settings.
-5. Diagnostics include service configuration, driver, relevant processes, capture/render defaults, PnP/parents/problem codes and recent events. Reports are evidence, not automatic attribution.
-6. Language saving prefers the same user-profile configuration that loading prefers. Update all ten languages for every new UI key.
+1. Option 1 starts directly after 1 and Enter. Saves the original backup once and disables/stops only `WavesTBSvc`. Never asks for a device, writes render/capture defaults, disables endpoints or disables `WavesTBVirtual`. Uses Core Audio to check SYN Pro Air render/capture and all previously active endpoints. Observes for 30 seconds with an inline percentage bar below the step; never use Write-Progress. Lost availability attempts service rollback and records failure. Applied configuration and confirmed stability are separate; confirmation requires complete observation, available events, unchanged defaults and available devices.
+2. Passive monitoring records event 65, PnP, defaults and service without altering them. Keep polling when no new events exist. ESC/Ctrl+C returns to the menu.
+3. Diagnostics save service/driver/process details, render/capture defaults, PnP and events, and open mmsys.cpl for manual output choice. PnP Unknown alone does not establish disabled state: query Core Audio.
+4. Language saving prioritizes the same profile as loading. Maintain all keys in ten languages; accented Portuguese, UTF-8 BOM.
+5. R opens restoration: W restores the service backup; E restores legacy power/communications settings independently of Waves. No additional confirmation in option 1. New power adjustments and temporary Swarm were removed from the menu.
+6. Retain pending Swarm session recovery for compatibility: validate snapshots, check PID/path/start time before stopping owned helpers, restore service/driver and report failures. Do not reintroduce temporary activation as the main mitigation.
 
 ## Files and packaging
 
@@ -29,7 +29,7 @@ Runtime data is under `%LOCALAPPDATA%\RoccatSynProManager`, falling back to the 
 
 ## Safety and compatibility
 
-- Always preserve explicit playback choice and capture defaults. The render setter uses nonpublic IPolicyConfig; handle failure and provide mmsys.cpl fallback. Do not select headset by name or overwrite per-app preferences.
+- Always preserve current render/capture defaults; do not request device selection in the main mitigation workflow. The render setter uses nonpublic IPolicyConfig; handle failure and provide mmsys.cpl fallback. Do not select headset by name or overwrite per-app preferences.
 - Service disablement persists as Windows configuration; no scheduled task or background guard is installed. Vendor repair/updates can re-enable it. Disabling Waves may affect EQ/effects even if Swarm opens. Explain these limits without guaranteeing LEDs or microphone quality.
 - Use exact service names and validated snapshots. Check readback, preserve baseline backups and report partial failures. Do not remove driver files or change unrelated audio services/devices.
 - Do not apply live service/driver changes merely to check packaging. Obtain task authorization for live configuration changes; follow later user instructions to leave the machine unchanged.

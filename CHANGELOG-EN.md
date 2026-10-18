@@ -5,20 +5,24 @@
 ### Main mitigation
 
 - Option 1 targets **Waves Audio Services (`WavesTBSvc`)**, isolated through service stop/start observations on the affected PC. It no longer relies on stopping the kernel driver that failed in the previous workflow.
-- Four stages: original backup, disable/stop service, explicit render selection and 30-second observation. Windows retains the service setting without keeping the panel open.
+- Four stages: original backup, disable/stop service, device availability check without output selection and 30-second observation. Windows retains the service setting without keeping the panel open.
 - Applied configuration and confirmed stability are separate results. Interrupted observation, unavailable events or further changes prevent stability confirmation. Reports retain actual observations.
-- **R** restores the original service; **P** retains the optional session output guard. No mode automatically chooses the headset or changes capture defaults.
+- **R → W** restores the original service. Option 1 requests no output selection and changes no render/capture defaults. Checks headset, microphone and previously active devices; loss of availability attempts service rollback and records the failure.
 
-### Other improvements
+### Simplified interface and menu
 
-- Temporary Swarm snapshots service, driver and render defaults; restores in finally and recovers interrupted sessions on next launch. Session-owned helper processes are matched by PID, path and start time. Failed restoration retains the snapshot.
-- Option 2 explains that enabling Waves can bring cycling back; minimizing Swarm to its tray may not exit it.
-- Passive monitoring includes service transitions and distinguishes endpoint states from default-output changes. Shared PnP enumeration avoids duplicate work.
-- Power/communications restoration is independent of Waves state; unreadable kernel-driver state does not block power settings.
-- Diagnostics include service configuration, relevant processes and capture defaults alongside PnP, render defaults and events.
-- Language saving now prioritizes the profile used for loading; ten translations remain embedded in the portable PS1.
-- Direct VBS-to-PowerShell launch, separate backups for separate purposes and messages that avoid unverified restoration claims.
-- Portuguese/English README and maintenance guides updated. ZIP includes only PS1 and VBS, with no separate translation JSON, documentation or BAT.
+- Option 1 starts directly with **1 + Enter**, with no extra confirmation or device selection and no default-output changes. Choose output manually in Windows.
+- Current menu: **1 mitigation; 2 monitoring; 3 diagnostics; 4 language; R restoration; 0 exit**.
+- Temporary Swarm and new USB/power adjustments removed from the menu. Legacy session recovery and power-backup restoration retained for compatibility.
+- R offers **W** to restore the Waves service and **E** to restore legacy power/communications settings.
+- Portuguese accents and cedillas restored in menus, steps, tips and diagnostics, preserving UTF-8 BOM.
+- PowerShell progress overlay replaced with an inline percentage/time bar below the step. Interrupted observation never displays artificial 100% completion.
+- Core Audio availability checks require headset, microphone and previously active devices to remain available. Unavailability attempts service rollback and records failure.
+- Header queries the audio API rather than treating PnP Unknown as disabled. Power-plan queries removed from startup.
+- After manually re-enabling the headset, the user reported cycling had stopped. A later API read showed headset, microphone and CREATIVE active; this does not prove audible playback.
+- Obsolete workflow code and UI strings removed; ten embedded languages, with preference saved in the user profile.
+- Passive monitoring and diagnostics retained. Portuguese/English README and maintenance guides aligned with the current menu.
+- ZIP contains only PS1 and VBS, without standalone JSON, documentation or BAT.
 
 ### Evidence and limitations
 

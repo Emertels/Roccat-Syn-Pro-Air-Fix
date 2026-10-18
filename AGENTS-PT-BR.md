@@ -10,12 +10,12 @@ Aplica-se ao painel, traduções, lançador e empacotamento deste repositório. 
 
 ## Contrato da implementação
 
-1. Opção 1 lê o serviço exato `WavesTBSvc`, salva a cópia original uma única vez, desativa/para o serviço, aplica uma saída ativa escolhida explicitamente aos três papéis de reprodução e observa 30 segundos sem reaplicar o padrão. Estabilidade confirmada exige serviço conferido, observação completa, eventos disponíveis, zero trocas/amostras fora da saída/eventos de estado, captura preservada e padrões finais corretos. Configuração aplicada e estabilidade confirmada são resultados distintos. Falhas antes de concluir a aplicação tentam restaurar serviço e reprodução. R restaura o serviço original; P abre a proteção opcional de sessão. Não desativar `WavesTBVirtual` na opção 1.
-2. Opção 2 salva a sessão de serviço/driver/reprodução antes de alterar, habilita Waves e abre Swarm. Acompanha `ROCCAT_Swarm.exe`, ignorando o monitor residente. O bloco finally restaura o estado ao encerrar ou usar ESC/Ctrl+C. Encerrar somente auxiliares criados pela própria sessão, conferindo PID, caminho e horário de início. Recuperar sessão interrompida na próxima abertura e manter a cópia se a restauração do serviço/driver falhar. Informar também falha de restauração da saída. O ciclo pode voltar enquanto Waves estiver temporariamente ativo.
-3. Monitoramento passivo registra evento 65, PnP, padrões de reprodução e serviço sem alterá-los. Continuar consultando quando não houver eventos. ESC/Ctrl+C volta ao menu.
-4. Energia/comunicações têm cópia e verificação próprias. Sua restauração não pode alterar driver/serviço Waves. Não exigir leitura do driver para ajustar energia.
-5. Diagnóstico inclui configuração do serviço, driver, processos relevantes, padrões de captura/reprodução, PnP/pais/códigos e eventos. Relatórios não atribuem causa automaticamente.
-6. A gravação do idioma prioriza o mesmo arquivo do perfil usado na leitura. Atualizar os dez idiomas em toda nova chave de interface.
+1. Opção 1 começa diretamente ao digitar 1 e Enter. Salva a cópia original uma vez e desativa/para somente `WavesTBSvc`. Nunca solicita dispositivo nem escreve padrões de reprodução/captura; nunca desativa endpoints ou `WavesTBVirtual`. Confere render/captura do SYN Pro Air e todos os endpoints antes ativos pela API Core Audio. Observa 30 segundos, com porcentagem inline abaixo da etapa; não usar Write-Progress. Perda de disponibilidade tenta restaurar o serviço e registra falha. Configuração aplicada e estabilidade confirmada são resultados distintos; confirmação exige observação completa, eventos disponíveis, padrões preservados e dispositivos disponíveis.
+2. Monitoramento passivo registra evento 65, PnP, padrões e serviço sem alterar nenhum deles. Continua consultando sem eventos novos. ESC/Ctrl+C volta ao menu.
+3. Diagnóstico salva serviço/driver/processos, padrões de captura/reprodução, PnP e eventos; abre mmsys.cpl para escolha manual de saída pelo usuário. PnP Unknown isolado não significa endpoint desativado: consultar a API de áudio.
+4. Idioma grava primeiro no perfil usado pela leitura. Manter todos os textos e chaves nos dez idiomas; português com acentos e cedilha, UTF-8 com BOM.
+5. R abre restauração: W restaura a cópia do serviço; E restaura energia/comunicações de versões anteriores, sem alterar Waves. Não adicionar confirmação extra à opção 1. A aplicação de novos ajustes de energia e o Swarm temporário foram retirados do menu.
+6. Manter recuperação de sessões Swarm pendentes de versões antigas: validar cópia, conferir PID/caminho/horário antes de encerrar auxiliares, restaurar serviço/driver e informar falhas. Esse é um fluxo de compatibilidade; não reintroduzir ativação temporária como correção principal.
 
 ## Arquivos e pacote
 
@@ -29,7 +29,7 @@ Dados em `%LOCALAPPDATA%\RoccatSynProManager`, com fallback para a pasta do scri
 
 ## Segurança e compatibilidade
 
-- Preservar a escolha explícita de reprodução e os padrões de captura. O setter usa IPolicyConfig sem documentação pública; tratar falhas e oferecer mmsys.cpl. Não selecionar o headset pelo nome nem sobrescrever preferências individuais de aplicativos.
+- Preservar os padrões atuais de reprodução e captura; não solicitar seleção de dispositivo no fluxo principal. O setter usa IPolicyConfig sem documentação pública; tratar falhas e oferecer mmsys.cpl. Não selecionar o headset pelo nome nem sobrescrever preferências individuais de aplicativos.
 - A desativação fica na configuração do Windows; não instalar tarefa agendada nem guardião em segundo plano. Reparos/atualizações do fabricante podem reativar o serviço. Desligar Waves pode afetar EQ/efeitos mesmo com Swarm aberto. Explicar limites sem garantir LEDs ou qualidade do microfone.
 - Usar nomes exatos e cópias validadas, conferir resultados e informar falhas parciais. Não remover drivers nem modificar outros serviços/dispositivos de áudio.
 - Não aplicar mudanças reais de serviço/driver apenas para conferir um pacote. Respeitar a autorização da tarefa e instruções posteriores para deixar a máquina sem novas alterações.
