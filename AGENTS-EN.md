@@ -1,41 +1,35 @@
-# Technical maintenance and agent guide
+﻿# Technical maintenance and agent guide
 
-This file describes what the repository implements. Do not treat hypotheses, menu labels, or historical claims as evidence of cause or effectiveness.
+Applies to this repository's manager, translations, launcher and packaging. Keep user-facing instructions consistent with the implementation.
 
-## Goal and available evidence
+## Evidence and limits
 
-The project helps observe ROCCAT Syn Pro Air audio endpoints and offers reversible settings on Windows 10/11. In the current report, the dongle can remain connected while Windows removes and re-enumerates the audio/microphone endpoint. The dongle's PnP status does not tell whether the headset is powered on or identify what initiated an endpoint change. Audio/Operational event 65, when available, records a state change; it does not prove that Waves, Swarm, USB, or hardware caused it.
+- October 18, 2026 controlled observations isolated `WavesTBSvc` (Waves Audio Services) as an implicated component on the reported PC: stopping it halted cycling, starting it reproduced cycling. Stopping GUI helpers alone did not help.
+- A source-core observation after disabling/stopping the service recorded 60 seconds with zero default changes, zero off-target samples, zero SYN Pro Air state events and unchanged capture defaults. This is a limited observation, not a permanent guarantee or an audible/LED test. Reboot persistence has not been verified.
+- Event 65 alone does not identify the initiating process. Dongle presence does not establish headset power state or working audio. Do not claim every cycling case has the same cause or that vendor binaries were repaired.
 
-Do not claim a definitive fix, guaranteed selection of `usbaudio.sys`, working LEDs, or that event 65 identifies the initiating process. Final validation requires observing the user's PC and headset during the failure.
+## Implementation contract
 
-## Structure and launch
+1. Option 1 snapshots the exact `WavesTBSvc` service, saves the baseline once, disables/stops it, applies an explicitly selected active render endpoint to all three roles and observes for 30 seconds without reapplying the default. Success requires service readback, complete observation, event availability, zero changes/off-target samples/state events, unchanged capture defaults and matching final render roles. Applied configuration and confirmed stability are separate results. Before application completes, failures attempt to restore prior service/render state. R restores the service baseline; P opens the optional session guard. Do not disable `WavesTBVirtual` as part of option 1.
+2. Option 2 records temporary driver/service/render state before mutation, enables Waves and opens Swarm. Watch `ROCCAT_Swarm.exe`, not its resident monitor. A finally block restores prior state on monitored exit or ESC/Ctrl+C. Only terminate helpers launched by this session after matching PID, path and start time. Interrupted sessions recover on next launch; retain snapshots on service/driver restoration failure. Playback restoration failures must also be reported. Waves cycling can return while the service is temporarily active.
+3. Passive monitoring records event 65, PnP transitions, render defaults and service changes without altering them. Keep polling if there are no events. ESC/Ctrl+C returns to the menu.
+4. Power/communications settings have their own backup and verification. Restoring them must not modify Waves driver/service state. Do not require a readable kernel-driver state to adjust power settings.
+5. Diagnostics include service configuration, driver, relevant processes, capture/render defaults, PnP/parents/problem codes and recent events. Reports are evidence, not automatic attribution.
+6. Language saving prefers the same user-profile configuration that loading prefers. Update all ten languages for every new UI key.
 
-- `Roccat-SynPro-Manager.ps1`: PowerShell panel for Windows PowerShell 5.1.
-- `i18n.json`: editable source for ten languages.
-- `Roccat-SynPro-Manager.vbs`: requests elevation through UAC and starts PowerShell; uses `Sysnative` when a 32-bit VBS host runs on 64-bit Windows.
-- `Roccat-SynPro-Manager.bat`: legacy compatibility wrapper, excluded from the portable package.
-- `tools/New-PortablePackage.ps1`: replaces the single `@@ROCCAT_I18N_JSON_EMBED@@` marker, writes a UTF-8 BOM PS1, and builds/inspects the release ZIP.
-- `README.md` and `README-EN.md`: user guides; `README-PT-BR.md` is the Portuguese copy for an explicit link.
-- `CHANGELOG-PT-BR.md` and `CHANGELOG-EN.md`: version history.
+## Files and packaging
 
-The published ZIP contains only `Roccat-SynPro-Manager.ps1` (embedded translations) and `Roccat-SynPro-Manager.vbs`. It is not an installer and does not contain README, agent documents, a separate language JSON, or the BAT wrapper.
+- `Roccat-SynPro-Manager.ps1`: Windows PowerShell 5.1 source, UTF-8 BOM; exactly one `@@ROCCAT_I18N_JSON_EMBED@@` marker.
+- `i18n.json`: editable translations retained in the repository.
+- `Roccat-SynPro-Manager.vbs`: elevation and native PowerShell launch without CMD; BAT is legacy and excluded from ZIP.
+- `tools/New-PortablePackage.ps1`: embeds translations and inspects a ZIP containing exactly PS1 and VBS. Never publish the uncompiled source as the standalone portable PS1.
+- `README.md` and `README-PT-BR.md` must match; keep English guides and both changelogs aligned. Credits: Antigravity and Codex.
 
-## Option behavior
+Runtime data is under `%LOCALAPPDATA%\RoccatSynProManager`, falling back to the script folder: `config.json`, `waves-service-backup.json`, `swarm-session.json`, `system-backup.json`, and diagnostics. Removing standalone translation JSON from the portable folder does not authorize deleting restoration backups.
 
-1. **Pin default output:** enumerates active `eRender` endpoints, lets the user choose one, sets Console/Multimedia/Communications roles, and reapplies the choice if it changes while monitoring. It does not change `eCapture`, the driver, or hardware. ESC/Ctrl+C stops the guard; there is no background service/task. The setter uses Windows' IPolicyConfig COM interface, which is not publicly documented; any failure must open the `mmsys.cpl` fallback and must not be reported as success.
-2. **Temporary Swarm:** captures the prior startup/running state, sets Start=3, starts Waves and Swarm. It waits for the `ROCCAT_Swarm.exe` interface process and ignores `ROCCAT_Swarm_Monitor.exe`, which can remain resident without a window. When Swarm fully exits or monitoring is cancelled by ESC/Ctrl+C, it attempts to restore the captured state. Cancelling leaves Swarm open; force-terminating PowerShell can interrupt restoration. This option is for EQ/microphone setup, not output-switch repair.
-3. **Passive sentinel:** observes event 65, AudioEndpoint PnP states, and default `eRender` roles; it does not modify driver, PnP state, endpoint, or default output. It logs transitions to `sentinela.log` and keeps polling when no new events are present. ESC/Ctrl+C returns to the menu.
-4. **Power/communications:** snapshots USB selective-suspend values per power scheme, the prior UserDuckingPreference, and readable WMI states. Applies and checks changes; reports when Root Hubs cannot be enumerated or verified. Restore requires the needed snapshot data.
-5. **Diagnostics:** saves PnP state, endpoint parent, problem code when available, playback defaults by role, driver/service details and queried events; opens `mmsys.cpl`. The report does not prove cause.
-6. **Language:** saves the preference in the local profile; strings come from `i18n.json` in the repository or embedded JSON in the published script.
+## Safety and compatibility
 
-Data files are stored under `%LOCALAPPDATA%\RoccatSynProManager`, with a fallback to the script folder. ESC in the main menu exits the process.
-
-## Maintenance rules
-
-- Preserve the user's explicit choice. Never select the headset by name/default; the guard may alter `eRender` roles only after the user chooses an endpoint and must not alter capture/microphone. Do not add background persistence without an explicit option.
-- Before changing registry, driver service, or power settings, confirm the required snapshot is complete; afterward verify the resulting state and report partial failures.
-- Do not remove or replace Windows driver files. Changes to `WavesTBVirtual` must be described as driver-service changes with possible impact on Swarm features.
-- Update every used UI/monitor string in all ten languages; confirm each array has ten values and the JSON remains valid.
-- Keep exactly one embedding marker in the source PS1. Build the distribution with the package script, inspect the ZIP, and do not add documentation to the portable asset.
-- Separate observation from hypothesis. Do not add hardware/controller IDs, USB bandwidth diagnoses, or Windows internals without machine-specific evidence and a reliable source.
+- Always preserve explicit playback choice and capture defaults. The render setter uses nonpublic IPolicyConfig; handle failure and provide mmsys.cpl fallback. Do not select headset by name or overwrite per-app preferences.
+- Service disablement persists as Windows configuration; no scheduled task or background guard is installed. Vendor repair/updates can re-enable it. Disabling Waves may affect EQ/effects even if Swarm opens. Explain these limits without guaranteeing LEDs or microphone quality.
+- Use exact service names and validated snapshots. Check readback, preserve baseline backups and report partial failures. Do not remove driver files or change unrelated audio services/devices.
+- Do not apply live service/driver changes merely to check packaging. Obtain task authorization for live configuration changes; follow later user instructions to leave the machine unchanged.

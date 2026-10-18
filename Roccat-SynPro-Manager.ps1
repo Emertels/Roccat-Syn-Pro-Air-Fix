@@ -37,6 +37,9 @@ try {
     try { New-Item -ItemType Directory -Path $diagnosticDir -Force -ErrorAction Stop | Out-Null } catch {}
 }
 
+$wavesServiceBackupFile = Join-Path $managerDataDir 'waves-service-backup.json'
+$swarmSessionFile = Join-Path $managerDataDir 'swarm-session.json'
+
 # As versoes do ZIP recebem o JSON embutido neste ponto; no repositorio, usa-se
 # i18n.json como fonte de edicao quando o marcador ainda nao foi compilado.
 $embeddedTranslationsJson = @'
@@ -98,7 +101,7 @@ function Set-CurrentLanguage($lang) {
         return $false
     }
     $json = @{ Language = $lang } | ConvertTo-Json
-    foreach ($target in @($configFile, $configDataFile)) {
+    foreach ($target in @($configDataFile, $configFile)) {
         $temp = "$target.tmp"
         try {
             $parent = Split-Path -Parent $target
@@ -325,11 +328,19 @@ namespace RoccatSynProAudioFix {
         }
 
         public static string GetDefaultRenderEndpointId(ERole role) {
+            return GetDefaultEndpointId(EDataFlow.Render, role);
+        }
+
+        public static string GetDefaultCaptureEndpointId(ERole role) {
+            return GetDefaultEndpointId(EDataFlow.Capture, role);
+        }
+
+        private static string GetDefaultEndpointId(EDataFlow flow, ERole role) {
             IMMDeviceEnumerator enumerator = null;
             IMMDevice device = null;
             try {
                 enumerator = CreateEnumerator();
-                int hr = enumerator.GetDefaultAudioEndpoint(EDataFlow.Render, role, out device);
+                int hr = enumerator.GetDefaultAudioEndpoint(flow, role, out device);
                 if (hr < 0 || device == null) return null;
                 string id;
                 hr = device.GetId(out id);
@@ -499,6 +510,7 @@ function Get-SystemAudioInfo {
         HeadsetDevId    = ""
         HeadsetProblem  = $null
         FixApplied      = (Get-FixStatus)
+        AudioService    = (Get-WavesAudioServiceSnapshot)
     }
 
     if ($state.DriverInstalled) {
@@ -534,7 +546,7 @@ function Save-SystemBackup([switch]$RequireCompletePower, [switch]$RequireDriver
         try {
             $existing = Get-Content -LiteralPath $stateBackupFile -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
             if (-not $existing.SavedAt) { throw 'Formato de copia invalido.' }
-            $driverComplete = (-not (Test-Path $regPath) -or ($null -ne $existing.DriverStart -and $null -ne $existing.DriverRunning))
+            $driverComplete = (-not $RequireDriver -or -not (Test-Path $regPath) -or ($null -ne $existing.DriverStart -and $null -ne $existing.DriverRunning))
             $powerComplete = $true
             if ($RequireCompletePower) {
                 $savedSchemes = @($existing.PowerSchemes)
@@ -580,7 +592,7 @@ function Save-SystemBackup([switch]$RequireCompletePower, [switch]$RequireDriver
     $driverRunning = $null
     try { $driverStart = (Get-ItemProperty -Path $regPath -Name Start -ErrorAction Stop).Start } catch {}
     $driverRunning = Get-WavesDriverRunning
-    if (($RequireDriver -or (Test-Path $regPath)) -and ($null -eq $driverStart -or $null -eq $driverRunning)) {
+    if ($RequireDriver -and ($null -eq $driverStart -or $null -eq $driverRunning)) {
         Write-Host " $((Get-Text 'BackupIncomplete' 'Nao consegui ler o estado atual do driver; nenhuma alteracao foi feita.'))" -ForegroundColor Red
         return $false
     }
@@ -665,21 +677,7 @@ function Restore-SystemBackup {
         } catch { $ok = $false }
     }
 
-    if ($null -ne $snapshot.DriverStart -and $null -ne $snapshot.DriverRunning -and (Test-Path $regPath)) {
-        try {
-            Set-ItemProperty -Path $regPath -Name Start -Value ([int]$snapshot.DriverStart) -ErrorAction Stop
-            if ($snapshot.DriverRunning) { sc.exe start $driverName 2>&1 | Out-Null }
-            else { sc.exe stop $driverName 2>&1 | Out-Null }
-            Start-Sleep -Seconds 2
-            $restoredStart = (Get-ItemProperty -Path $regPath -Name Start -ErrorAction Stop).Start
-            $restoredRunning = Get-WavesDriverRunning
-            if ([int]$restoredStart -ne [int]$snapshot.DriverStart) { $ok = $false }
-            if ($null -eq $restoredRunning -or [bool]$restoredRunning -ne [bool]$snapshot.DriverRunning) { $ok = $false }
-        } catch { $ok = $false }
-    } elseif ((Test-Path $regPath) -or $null -ne $snapshot.DriverStart -or $null -ne $snapshot.DriverRunning) {
-        $ok = $false
-    }
-
+    # Energy restoration is independent of the driver/service session backups.
     if ($ok) { Write-Host " $((Get-Text 'RestoreDone' 'Configuracoes anteriores restauradas.'))" -ForegroundColor Green }
     else { Write-Host " $((Get-Text 'RestoreFailed' 'A restauracao ficou incompleta; confira as mensagens acima.'))" -ForegroundColor Red }
     return $ok
@@ -759,10 +757,19 @@ function Show-DiagnosticReport {
 
     $lines.Add('')
     $lines.Add('=== Servicos de audio ===')
-    foreach ($serviceName in @('Audiosrv','AudioEndpointBuilder')) {
+    foreach ($serviceName in @('Audiosrv','AudioEndpointBuilder','WavesTBSvc')) {
         try { $service = Get-Service -Name $serviceName -ErrorAction Stop; $lines.Add("$serviceName = $($service.Status)") }
         catch { $lines.Add("$serviceName = nao consultado") }
     }
+
+    $wavesService = Get-WavesAudioServiceSnapshot
+    $lines.Add('Waves Audio Services startup/runtime: ' + ($wavesService | ConvertTo-Json -Compress))
+    $captureDefaults = Get-DefaultCaptureEndpointSnapshot
+    $lines.Add('Default capture roles (read only): ' + ($captureDefaults | ConvertTo-Json -Compress))
+    foreach ($process in @(Get-Process -Name ROCCAT_Swarm,ROCCAT_Swarm_Monitor,ROCCAT_Waves_Driver,WavesLoopback64 -ErrorAction SilentlyContinue)) {
+        $lines.Add("Observed process: $($process.ProcessName) | PID=$($process.Id)")
+    }
+    $lines.Add('Process presence and event 65 alone do not identify the initiator of a change.')
 
     $lines.Add('')
     $lines.Add('=== Suspensao seletiva USB (plano atual) ===')
@@ -837,7 +844,6 @@ function Read-MenuChoice($prompt) {
 
 function Show-Header {
     Clear-Host
-    $info = Get-SystemAudioInfo
 
     Write-Host "==============================================================================" -ForegroundColor DarkCyan
     Write-Host "             $((Get-Text 'Title' 'ROCCAT SYN PRO AIR - MASTER MANAGER'))      " -ForegroundColor Cyan
@@ -850,6 +856,7 @@ function Show-Header {
     Write-Host "------------------------------------------------------------------------------" -ForegroundColor DarkCyan
 
     Write-Host " [$((Get-Text 'SystemStatus' 'STATUS DO SISTEMA'))]" -ForegroundColor Yellow
+    $info = Get-SystemAudioInfo
 
     function Write-AlignedStatus($label, $value, $color) {
         $prefix = "  * " + $label
@@ -873,6 +880,10 @@ function Show-Header {
     $tbCol = if (-not $info.DriverInstalled) { "DarkGray" } elseif (-not $info.DriverStateKnown) { "Yellow" } elseif ($info.DriverRunning) { "Yellow" } else { "Green" }
     Write-AlignedStatus (Get-Text 'DriverTB' 'Driver Turtle Beach') $tbVal $tbCol
 
+    $service = $info.AudioService
+    $serviceValue = if (-not $service) { Get-Text 'DriverUnknown' } elseif ($service.Start -eq 4 -and -not $service.Running) { Get-Text 'ServiceStatusDisabled' } elseif ($service.Running) { Get-Text 'ServiceStatusRunning' } else { Get-Text 'ServiceStatusStopped' }
+    Write-AlignedStatus (Get-Text 'ServiceStatusLabel') $serviceValue $(if ($service -and $service.Start -eq 4 -and -not $service.Running) { 'Green' } else { 'Yellow' })
+
     # Headset
     $hsVal = if ($info.HeadsetStatus -eq 'OK') { (Get-Text 'DeviceOK' 'PnP OK [presente; nao confirma reproducao]') } else { "$((Get-Text 'DeviceInactive' 'Inativo / indisponivel')) [$($info.HeadsetStatus)]" }
     $hsCol = if ($info.HeadsetStatus -eq 'OK') { "Green" } else { "Red" }
@@ -886,44 +897,225 @@ function Show-Header {
     Write-Host "------------------------------------------------------------------------------" -ForegroundColor DarkCyan
 }
 
+function Get-DefaultCaptureEndpointSnapshot {
+    if (-not (Initialize-CoreAudioApi)) { return $null }
+    $roles = [ordered]@{}
+    foreach ($name in @('Console','Multimedia','Communications')) {
+        try { $roles[$name] = [RoccatSynProAudioFix.CoreAudio]::GetDefaultCaptureEndpointId([Enum]::Parse([RoccatSynProAudioFix.ERole], $name)) }
+        catch { $roles[$name] = $null }
+    }
+    return [pscustomobject]$roles
+}
+
+function Get-WavesAudioServiceSnapshot {
+    $key = 'HKLM:\SYSTEM\CurrentControlSet\Services\WavesTBSvc'
+    try {
+        $properties = Get-ItemProperty -LiteralPath $key -ErrorAction Stop
+        if ([string]$properties.ImagePath -notmatch '(?i)WavesTBSvc64\.exe(?:["\s]|$)') { return $null }
+        $service = Get-Service -Name WavesTBSvc -ErrorAction Stop
+        if ($service.Status -notin @('Running','Stopped')) { return $null }
+        return [pscustomobject]@{
+            Schema = 1; ServiceName = 'WavesTBSvc'; SavedAt = (Get-Date).ToString('o')
+            Start = [int]$properties.Start; Running = ($service.Status -eq 'Running')
+            ImagePath = [string]$properties.ImagePath
+            DelayedStartExisted = ($properties.PSObject.Properties.Name -contains 'DelayedAutoStart')
+            DelayedStart = $properties.DelayedAutoStart
+        }
+    } catch { return $null }
+}
+
+function Test-WavesAudioServiceSnapshot($snapshot) {
+    return ($snapshot -and $snapshot.Schema -eq 1 -and $snapshot.ServiceName -eq 'WavesTBSvc' -and
+        $snapshot.Start -in @(2,3,4) -and $snapshot.Running -is [bool] -and
+        $snapshot.DelayedStartExisted -is [bool] -and
+        (-not $snapshot.DelayedStartExisted -or $snapshot.DelayedStart -in @(0,1)) -and
+        [string]$snapshot.ImagePath -match '(?i)WavesTBSvc64\.exe(?:["\s]|$)')
+}
+
+function Save-WavesAudioServiceBackup($snapshot) {
+    if (-not (Test-WavesAudioServiceSnapshot $snapshot)) { throw (Get-Text 'ServiceBackupInvalid') }
+    if (Test-Path -LiteralPath $wavesServiceBackupFile) {
+        $existing = Get-Content -LiteralPath $wavesServiceBackupFile -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
+        if (-not (Test-WavesAudioServiceSnapshot $existing)) { throw (Get-Text 'ServiceBackupInvalid') }
+        return
+    }
+    $temporary = "$wavesServiceBackupFile.tmp"
+    $snapshot | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $temporary -Encoding UTF8 -ErrorAction Stop
+    $saved = Get-Content -LiteralPath $temporary -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
+    if (-not (Test-WavesAudioServiceSnapshot $saved)) { throw (Get-Text 'ServiceBackupInvalid') }
+    Move-Item -LiteralPath $temporary -Destination $wavesServiceBackupFile -ErrorAction Stop
+}
+
+function Set-WavesAudioServiceState([int]$start, [bool]$running) {
+    if ($start -notin @(2,3,4) -or -not (Get-WavesAudioServiceSnapshot)) { throw (Get-Text 'ServiceUnavailable') }
+    $startup = @{2='Automatic';3='Manual';4='Disabled'}
+    if ($running) {
+        # A disabled service must be enabled before it can be started. Its
+        # original startup type is reapplied after the runtime state is restored.
+        Set-Service -Name WavesTBSvc -StartupType Manual -ErrorAction Stop
+        $serviceCommand = & "$env:SystemRoot\System32\sc.exe" start WavesTBSvc 2>&1
+        if ($LASTEXITCODE -notin @(0,1056)) { throw ($serviceCommand -join ' ') }
+        (Get-Service WavesTBSvc).WaitForStatus('Running',[TimeSpan]::FromSeconds(10))
+        Set-Service -Name WavesTBSvc -StartupType $startup[$start] -ErrorAction Stop
+    } else {
+        Set-Service -Name WavesTBSvc -StartupType $startup[$start] -ErrorAction Stop
+        $serviceCommand = & "$env:SystemRoot\System32\sc.exe" stop WavesTBSvc 2>&1
+        if ($LASTEXITCODE -notin @(0,1062)) { throw ($serviceCommand -join ' ') }
+        (Get-Service WavesTBSvc).WaitForStatus('Stopped',[TimeSpan]::FromSeconds(10))
+    }
+    $actual = Get-WavesAudioServiceSnapshot
+    if (-not $actual -or $actual.Start -ne $start -or $actual.Running -ne $running) { throw (Get-Text 'ActionFailed') }
+}
+
+function Restore-WavesAudioServiceSnapshot($snapshot) {
+    if (-not (Test-WavesAudioServiceSnapshot $snapshot)) { return $false }
+    try {
+        Set-WavesAudioServiceState ([int]$snapshot.Start) ([bool]$snapshot.Running)
+        if ($snapshot.DelayedStartExisted) {
+            Set-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Services\WavesTBSvc' -Name DelayedAutoStart -Type DWord -Value ([int]$snapshot.DelayedStart) -ErrorAction Stop
+        }
+        $actual = Get-WavesAudioServiceSnapshot
+        return ($actual -and $actual.Start -eq $snapshot.Start -and $actual.Running -eq $snapshot.Running -and
+            (-not $snapshot.DelayedStartExisted -or $actual.DelayedStart -eq $snapshot.DelayedStart))
+    } catch { return $false }
+}
+
+function Select-RenderEndpoint {
+    if (-not (Initialize-CoreAudioApi)) { return $null }
+    try { $endpoints = @([RoccatSynProAudioFix.CoreAudio]::GetActiveRenderEndpoints()) }
+    catch { Write-Host $_.Exception.Message -ForegroundColor Red; return $null }
+    if ($endpoints.Count -eq 0) { Write-Host (Get-Text 'OutputNoEndpoints') -ForegroundColor Red; return $null }
+    $defaults = Get-DefaultRenderEndpointSnapshot
+    Write-Host " $((Get-Text 'OutputChooseHeading'))" -ForegroundColor White
+    for ($index = 0; $index -lt $endpoints.Count; $index++) {
+        $endpoint = $endpoints[$index]
+        $isDefault = $defaults -and $endpoint.Id -in @($defaults.Console,$defaults.Multimedia,$defaults.Communications)
+        $tag = if ($isDefault) { Get-Text 'OutputDefaultTag' } else { '' }
+        Write-Host ('  [{0}] {1} {2}' -f ($index + 1),$endpoint.Name,$tag) -ForegroundColor $(if($isDefault){'Yellow'}else{'Gray'})
+    }
+    $choice = Read-MenuChoice (Get-Text 'OutputSelectPrompt')
+    if ($choice -eq '__ESC__') { return $null }
+    $number = 0
+    if (-not [int]::TryParse([string]$choice,[ref]$number) -or $number -lt 1 -or $number -gt $endpoints.Count) {
+        Write-Host (Get-Text 'InvalidOption') -ForegroundColor Yellow
+        return $null
+    }
+    return $endpoints[$number - 1]
+}
+
+function Measure-DefaultOutputStability([string]$endpointId, [int]$seconds = 30) {
+    $started = Get-Date
+    $watch = [Diagnostics.Stopwatch]::StartNew()
+    $changes = 0; $offTarget = 0; $lastSignature = ''; $cancelled = $false
+    $captureBefore = Get-DefaultCaptureEndpointSnapshot
+    $oldControlC = $false
+    try { $oldControlC = [Console]::TreatControlCAsInput; [Console]::TreatControlCAsInput = $true } catch {}
+    try {
+        while ($watch.Elapsed.TotalSeconds -lt $seconds) {
+            try {
+                if ([Console]::KeyAvailable) {
+                    $key = [Console]::ReadKey($true)
+                    if ($key.Key -eq [ConsoleKey]::Escape -or ($key.Key -eq [ConsoleKey]::C -and ([int]$key.Modifiers -band [int][ConsoleModifiers]::Control))) { $cancelled = $true; break }
+                }
+            } catch {}
+            $current = Get-DefaultRenderEndpointSnapshot
+            $signature = $current | ConvertTo-Json -Compress
+            if ($lastSignature -and $signature -ne $lastSignature) { $changes++ }
+            $lastSignature = $signature
+            if (-not $current -or $current.Console -ne $endpointId -or $current.Multimedia -ne $endpointId -or $current.Communications -ne $endpointId) { $offTarget++ }
+            Write-Progress -Activity (Get-Text 'ServiceObserve') -Status ('{0}/{1} s' -f [int]$watch.Elapsed.TotalSeconds,$seconds) -PercentComplete ([Math]::Min(100,[int](100 * $watch.Elapsed.TotalSeconds / $seconds)))
+            Start-Sleep -Milliseconds 500
+        }
+    } finally {
+        Write-Progress -Activity (Get-Text 'ServiceObserve') -Completed
+        try { [Console]::TreatControlCAsInput = $oldControlC } catch {}
+    }
+    $eventsAvailable = $false; $stateEvents = @()
+    try {
+        $log = Get-WinEvent -ListLog 'Microsoft-Windows-Audio/Operational' -ErrorAction Stop
+        $eventsAvailable = [bool]$log.IsEnabled
+        if ($eventsAvailable) {
+            $eventErrors = @()
+            $stateEvents = @(Get-WinEvent -FilterHashtable @{LogName='Microsoft-Windows-Audio/Operational';Id=65;StartTime=$started} -MaxEvents 250 -ErrorAction SilentlyContinue -ErrorVariable eventErrors |
+                Where-Object { $_.Properties.Count -ge 4 -and [string]$_.Properties[0].Value -match '(?i)SYN.*PRO.*AIR' })
+            if (@($eventErrors | Where-Object { $_.FullyQualifiedErrorId -notmatch '^NoMatchingEventsFound' }).Count -gt 0) { $eventsAvailable = $false }
+        }
+    } catch {}
+    $captureAfter = Get-DefaultCaptureEndpointSnapshot
+    return [pscustomobject]@{ObservedSeconds=[int]$watch.Elapsed.TotalSeconds;Complete=(-not $cancelled);DefaultChanges=$changes;OffTargetSamples=$offTarget;
+        EndpointStateEvents=$stateEvents.Count;EventsAvailable=$eventsAvailable;CaptureBefore=$captureBefore;CaptureAfter=$captureAfter;
+        CaptureUnchanged=($null -ne $captureBefore -and $null -ne $captureAfter -and
+            (($captureBefore | ConvertTo-Json -Compress) -eq ($captureAfter | ConvertTo-Json -Compress)));FinalDefaults=(Get-DefaultRenderEndpointSnapshot)}
+}
+
+function Invoke-StableAudioRepair([string]$endpointId, [int]$verificationSeconds = 30) {
+    $result = [ordered]@{Applied=$false;Verified=$false;Service=$null;Observation=$null;Error=$null}
+    $before = Get-WavesAudioServiceSnapshot
+    $renderBefore = Get-DefaultRenderEndpointSnapshot
+    $changed = $false
+    try {
+        if (-not (Test-WavesAudioServiceSnapshot $before)) { throw (Get-Text 'ServiceUnavailable') }
+        if (-not [RoccatSynProAudioFix.CoreAudio]::IsRenderEndpointActive($endpointId)) { throw (Get-Text 'OutputNoEndpoints') }
+        Write-Host " [1/4] $((Get-Text 'ServiceSaveBackup'))" -ForegroundColor Cyan
+        Save-WavesAudioServiceBackup $before
+        Write-Host " [2/4] $((Get-Text 'ServiceDisable'))" -ForegroundColor Cyan
+        $changed = $true
+        Set-WavesAudioServiceState 4 $false
+        Write-Host " [3/4] $((Get-Text 'OutputApplying'))" -ForegroundColor Cyan
+        if (-not (Set-PreferredRenderEndpoint $endpointId)) { throw (Get-Text 'OutputSetFailed') }
+        $result.Applied = $true
+        Write-Host " [4/4] $((Get-Text 'ServiceObserve')) ($verificationSeconds s)" -ForegroundColor Cyan
+        $result.Observation = Measure-DefaultOutputStability $endpointId $verificationSeconds
+        $result.Service = Get-WavesAudioServiceSnapshot
+        $observation = $result.Observation
+        $result.Verified = ($observation.Complete -and $observation.OffTargetSamples -eq 0 -and $observation.DefaultChanges -eq 0 -and
+            $observation.EventsAvailable -and $observation.EndpointStateEvents -eq 0 -and $observation.CaptureUnchanged -and
+            $result.Service -and $result.Service.Start -eq 4 -and -not $result.Service.Running -and
+            $observation.FinalDefaults.Console -eq $endpointId -and $observation.FinalDefaults.Multimedia -eq $endpointId -and
+            $observation.FinalDefaults.Communications -eq $endpointId)
+        Write-Host (' ' + ((Get-Text 'ServiceVerifyResult') -f $observation.ObservedSeconds,$observation.DefaultChanges,$observation.EndpointStateEvents)) -ForegroundColor $(if($result.Verified){'Green'}else{'Yellow'})
+        Write-Host " $((Get-Text 'ServiceApplied'))" -ForegroundColor Green
+        if (-not $result.Verified) { Write-Host (Get-Text 'ServiceNotVerified') -ForegroundColor Yellow }
+    } catch {
+        $result.Error = $_.Exception.Message
+        if ($changed -and -not $result.Applied) {
+            $serviceRestored = Restore-WavesAudioServiceSnapshot $before
+            $renderRestored = Restore-RenderEndpointSnapshot $renderBefore
+            $result.Error += " | rollback: Waves=$serviceRestored; playback=$renderRestored"
+        }
+        Write-Host " $((Get-Text 'ActionFailed')) $($result.Error)" -ForegroundColor Red
+    }
+    try { $result | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $diagnosticDir 'last-system-repair.json') -Encoding UTF8 -ErrorAction Stop } catch {}
+    return [pscustomobject]$result
+}
+
+function Invoke-StableSystemMode {
+    Write-Host "`n>>> $((Get-Text 'Opt1Title'))" -ForegroundColor Cyan
+    Write-Host " $((Get-Text 'ServiceEffectsNote'))" -ForegroundColor Yellow
+    $choice = Read-MenuChoice (Get-Text 'ServiceRepairPrompt')
+    if ($choice -eq '__ESC__') { return }
+    if ($choice -match '^[pP]$') { Invoke-OutputGuard; return }
+    if ($choice -match '^[rR]$') {
+        try {
+            if (-not (Test-Path -LiteralPath $wavesServiceBackupFile)) { throw (Get-Text 'ServiceNoBackup') }
+            $snapshot = Get-Content -LiteralPath $wavesServiceBackupFile -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
+            if (-not (Restore-WavesAudioServiceSnapshot $snapshot)) { throw (Get-Text 'ActionFailed') }
+            Write-Host " $((Get-Text 'ServiceRestored'))" -ForegroundColor Green
+        } catch { Write-Host $_.Exception.Message -ForegroundColor Red }
+    } elseif ($choice -eq '' -or $choice -eq '1') {
+        $target = Select-RenderEndpoint
+        if ($target) { $null = Invoke-StableAudioRepair $target.Id 30 }
+    } else { Write-Host (Get-Text 'InvalidOption') -ForegroundColor Yellow }
+    Write-Host (Get-Text 'PressKey') -ForegroundColor Gray
+    $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+}
+
 function Invoke-OutputGuard {
     Write-Host ""
-    Write-Host ">>> $((Get-Text 'Opt1Title'))..." -ForegroundColor Cyan
-    if (-not (Initialize-CoreAudioApi)) {
-        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-        return
-    }
-
-    $endpoints = @()
-    try { $endpoints = @([RoccatSynProAudioFix.CoreAudio]::GetActiveRenderEndpoints()) }
-    catch {
-        Write-Host " $((Get-Text 'AudioApiFailed' 'Nao foi possivel enumerar as saidas de audio.')) $($_.Exception.Message)" -ForegroundColor Red
-        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-        return
-    }
-    if ($endpoints.Count -eq 0) {
-        Write-Host " $((Get-Text 'OutputNoEndpoints' 'Nenhuma saida de audio ativa foi encontrada.'))" -ForegroundColor Red
-        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-        return
-    }
-
+    Write-Host ">>> $((Get-Text 'OutputGuardTitle'))..." -ForegroundColor Cyan
+    $target = Select-RenderEndpoint
+    if (-not $target) { return }
     $initialDefaults = Get-DefaultRenderEndpointSnapshot
-    Write-Host " $((Get-Text 'OutputChooseHeading' 'Escolha a saida que deve continuar como padrao:'))" -ForegroundColor White
-    for ($i = 0; $i -lt $endpoints.Count; $i++) {
-        $endpoint = $endpoints[$i]
-        $isDefault = $initialDefaults -and ($endpoint.Id -eq $initialDefaults.Console -or $endpoint.Id -eq $initialDefaults.Multimedia -or $endpoint.Id -eq $initialDefaults.Communications)
-        $tag = if ($isDefault) { Get-Text 'OutputDefaultTag' '[padrao atual]' } else { '' }
-        Write-Host ("  [{0}] {1} {2}" -f ($i + 1), $endpoint.Name, $tag) -ForegroundColor $(if ($isDefault) { 'Yellow' } else { 'Gray' })
-    }
-    $selection = Read-MenuChoice (Get-Text 'OutputSelectPrompt' 'Numero da saida desejada (ESC cancela):')
-    if ($selection -eq '__ESC__') { return }
-    $selectedIndex = 0
-    if (-not [int]::TryParse([string]$selection, [ref]$selectedIndex) -or $selectedIndex -lt 1 -or $selectedIndex -gt $endpoints.Count) {
-        Write-Host " $((Get-Text 'InvalidOption' 'Opcao invalida.'))" -ForegroundColor Yellow
-        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-        return
-    }
-    $target = $endpoints[$selectedIndex - 1]
     Write-Host " $((Get-Text 'OutputApplying' 'Aplicando a saida escolhida e confirmando os tres papeis de reproducao...'))" -ForegroundColor Cyan
     if (-not (Set-PreferredRenderEndpoint $target.Id)) {
         $rolledBack = Restore-RenderEndpointSnapshot $initialDefaults
@@ -1131,95 +1323,129 @@ function Restore-WavesDriverState($startValue, $wasRunning) {
     } catch { return $false }
 }
 
+function Save-SwarmSession($session) {
+    $temporary = "$swarmSessionFile.tmp"
+    $session | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $temporary -Encoding UTF8 -ErrorAction Stop
+    $check = Get-Content -LiteralPath $temporary -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
+    if ($check.Schema -ne 1 -or $check.DriverRunning -isnot [bool] -or $check.DriverStart -notin @(0,1,2,3,4)) { throw (Get-Text 'BackupIncomplete') }
+    Move-Item -LiteralPath $temporary -Destination $swarmSessionFile -Force -ErrorAction Stop
+}
+
+function Get-WavesLoopbackExecutable {
+    $snapshot = Get-WavesAudioServiceSnapshot
+    if (-not $snapshot) { return $null }
+    $match = [regex]::Match($snapshot.ImagePath, '^\s*"?(.+?\.exe)(?:"|\s|$)', [Text.RegularExpressions.RegexOptions]::IgnoreCase)
+    if (-not $match.Success) { return $null }
+    $servicePath = [Environment]::ExpandEnvironmentVariables($match.Groups[1].Value)
+    if ($servicePath.StartsWith('\SystemRoot\',[StringComparison]::OrdinalIgnoreCase)) { $servicePath = Join-Path $env:SystemRoot $servicePath.Substring(12) }
+    $path = Join-Path (Split-Path -Parent $servicePath) 'WavesLoopback64.exe'
+    if (Test-Path -LiteralPath $path -PathType Leaf) { return $path }
+    return $null
+}
+
+function Restore-SwarmSession($session) {
+    if (-not $session -or $session.Schema -ne 1 -or $session.DriverStart -notin @(0,1,2,3,4) -or $session.DriverRunning -isnot [bool]) { return $false }
+    if ($session.Service -and -not (Test-WavesAudioServiceSnapshot $session.Service)) { return $false }
+    $serviceOk = $true; $driverOk = $false
+    foreach ($owned in @($session.OwnedProcesses)) {
+        try {
+            if (-not $owned -or [IO.Path]::GetFileName($owned.Path) -notin @('ROCCAT_Waves_Driver.exe','WavesLoopback64.exe')) { continue }
+            $process = Get-Process -Id ([int]$owned.Id) -ErrorAction Stop
+            if ($process.Path -eq $owned.Path -and $process.StartTime.ToUniversalTime().ToString('o') -eq $owned.StartTimeUtc) {
+                Stop-Process -Id $process.Id -ErrorAction Stop
+            }
+        } catch {}
+    }
+    try {
+        # Release the user service before restoring a stopped kernel driver.
+        if ($session.Service) { Set-WavesAudioServiceState 3 $false }
+        $driverOk = Restore-WavesDriverState $session.DriverStart $session.DriverRunning
+    } catch { $driverOk = $false }
+    finally {
+        if ($session.Service) { $serviceOk = Restore-WavesAudioServiceSnapshot $session.Service }
+    }
+    if ($session.RenderDefaults) {
+        $outputOk = Restore-RenderEndpointSnapshot $session.RenderDefaults
+        if (-not $outputOk) { Write-Host (Get-Text 'OutputPartialChange') -ForegroundColor Yellow }
+    }
+    if ($serviceOk -and $driverOk) {
+        # Only the verified, completed temporary session is removed.
+        if (Test-Path -LiteralPath $swarmSessionFile) { [IO.File]::Delete($swarmSessionFile) }
+        return $true
+    }
+    return $false
+}
+
+function Restore-PendingSwarmSession {
+    if (-not (Test-Path -LiteralPath $swarmSessionFile)) { return $true }
+    Write-Host (Get-Text 'SwarmSessionRecovery') -ForegroundColor Yellow
+    try {
+        $session = Get-Content -LiteralPath $swarmSessionFile -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
+        if (Restore-SwarmSession $session) { Write-Host (Get-Text 'DriverStateRestored') -ForegroundColor Green; return $true }
+    } catch { Write-Host $_.Exception.Message -ForegroundColor Red }
+    Write-Host (Get-Text 'DriverRestoreFailed') -ForegroundColor Red
+    return $false
+}
+
 function Invoke-SwarmAutoPilot {
-    Write-Host ""
-    Write-Host ">>> $((Get-Text 'Opt2Title'))..." -ForegroundColor Yellow
+    Write-Host "`n>>> $((Get-Text 'Opt2Title'))" -ForegroundColor Yellow
+    if (-not (Restore-PendingSwarmSession)) { $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown'); return }
     $swarmExe = Find-SwarmExecutable
-    if (-not $swarmExe) {
-        Write-Host " $((Get-Text 'SwarmNotFound' 'ROCCAT Swarm nao foi encontrado nos caminhos padrao.'))" -ForegroundColor Red
-        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-        return
+    if (-not $swarmExe) { Write-Host (Get-Text 'SwarmNotFound') -ForegroundColor Red; $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown'); return }
+    $driverRunning = Get-WavesDriverRunning
+    $driverStart = $null
+    try { $driverStart = (Get-ItemProperty -LiteralPath $regPath -Name Start -ErrorAction Stop).Start } catch {}
+    if ($null -eq $driverRunning -or $null -eq $driverStart) {
+        Write-Host (Get-Text 'DriverStateUnknown') -ForegroundColor Red
+        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown'); return
     }
-
-    if (-not (Save-SystemBackup -RequireDriver)) {
-        Write-Host " $((Get-Text 'BackupRequired' 'Nao foi possivel confirmar a copia de seguranca; nenhuma alteracao foi feita.'))" -ForegroundColor Red
-        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-        return
-    }
-    $priorDriverStart = $null
-    $priorDriverRunning = Get-WavesDriverRunning
-    try { $priorDriverStart = (Get-ItemProperty -Path $regPath -Name 'Start' -ErrorAction Stop).Start } catch {}
-    if ($null -eq $priorDriverStart -or $null -eq $priorDriverRunning) {
-        Write-Host " $((Get-Text 'DriverStateUnknown' 'Nao foi possivel ler o estado anterior do driver; nenhuma alteracao foi feita.'))" -ForegroundColor Red
-        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-        return
-    }
-
-    $swarmWasRunning = @(Get-RoccatSwarmUiProcesses).Count -gt 0
+    $session = [pscustomobject]@{Schema=1;SavedAt=(Get-Date).ToString('o');DriverStart=[int]$driverStart;DriverRunning=[bool]$driverRunning;
+        Service=(Get-WavesAudioServiceSnapshot);RenderDefaults=(Get-DefaultRenderEndpointSnapshot);OwnedProcesses=@()}
+    try { Save-SwarmSession $session }
+    catch { Write-Host "$(Get-Text 'BackupRequired') $($_.Exception.Message)" -ForegroundColor Red; $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown'); return }
+    $oldControlC = $false
     try {
+        Write-Host " [1/3] $((Get-Text 'ServiceTemporaryStart'))" -ForegroundColor Cyan
+        if ($session.Service) { Set-WavesAudioServiceState 3 $true }
         Set-WavesDriverMode 3 -StartNow
-        $wavesExe = Find-WavesExecutable
-        if ($wavesExe -and -not (Get-Process -Name 'ROCCAT_Waves_Driver' -ErrorAction SilentlyContinue)) { Start-Process -FilePath $wavesExe -ErrorAction Stop }
-        if (-not $swarmWasRunning) { Start-Process -FilePath $swarmExe -ErrorAction Stop }
-
-        # Aguarda a interface principal. O Monitor auxiliar pode estar sempre
-        # residente e nao deve impedir a restauracao apos fechar o Swarm.
-        $launchTimer = [System.Diagnostics.Stopwatch]::StartNew()
-        while (@(Get-RoccatSwarmUiProcesses).Count -eq 0 -and $launchTimer.ElapsedMilliseconds -lt 8000) {
-            Start-Sleep -Milliseconds 250
+        foreach ($candidate in @((Find-WavesExecutable),(Get-WavesLoopbackExecutable))) {
+            if (-not $candidate) { continue }
+            $name = [IO.Path]::GetFileNameWithoutExtension($candidate)
+            if (-not (Get-Process -Name $name -ErrorAction SilentlyContinue)) {
+                $started = Start-Process -FilePath $candidate -WorkingDirectory (Split-Path -Parent $candidate) -WindowStyle Hidden -PassThru -ErrorAction Stop
+                try {
+                    $session.OwnedProcesses += [pscustomobject]@{Id=$started.Id;Path=$candidate;StartTimeUtc=$started.StartTime.ToUniversalTime().ToString('o')}
+                    Save-SwarmSession $session
+                } catch { throw "Cannot record started component: $candidate" }
+            }
         }
-        if (@(Get-RoccatSwarmUiProcesses).Count -eq 0) {
-            $restored = Restore-WavesDriverState $priorDriverStart $priorDriverRunning
-            Write-Host " $((Get-Text 'SwarmStartTimeout' 'O processo do Swarm nao apareceu em 8 segundos; a configuracao anterior do driver sera restaurada.'))" -ForegroundColor Red
-            if ($restored) { Write-Host " $((Get-Text 'DriverStateRestored' 'Estado anterior do driver restaurado e verificado.'))" -ForegroundColor Yellow }
-            else { Write-Host " $((Get-Text 'DriverRestoreFailed' 'Nao foi possivel confirmar a restauracao do estado anterior do driver.'))" -ForegroundColor Red }
-            $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-            return
-        }
-    } catch {
-        $restored = Restore-WavesDriverState $priorDriverStart $priorDriverRunning
-        Write-Host " $((Get-Text 'ActionFailed' 'Falha ao iniciar o Swarm/driver.')) $($_.Exception.Message)" -ForegroundColor Red
-        if ($restored) { Write-Host " $((Get-Text 'DriverStateRestored' 'Configuracao anterior do driver restaurada.'))" -ForegroundColor Yellow }
-        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-        return
-    }
-
-    Write-Host " $((Get-Text 'SwarmAutopilotRunning' 'Modo temporario apenas para configurar EQ/microfone; nao corrige o audio. Saia totalmente do Swarm ou pressione ESC para restaurar o driver.'))" -ForegroundColor Cyan
-    Write-Host ""
-
-    $oldTreatControlC = $false
-    $monitorCancelled = $false
-    $swarmClosed = $false
-    try { $oldTreatControlC = [Console]::TreatControlCAsInput; [Console]::TreatControlCAsInput = $true } catch {}
-    try {
-        while ($true) {
+        Write-Host " [2/3] $((Get-Text 'SwarmAutopilotRunning'))" -ForegroundColor Cyan
+        if (@(Get-RoccatSwarmUiProcesses).Count -eq 0) { Start-Process -FilePath $swarmExe -WorkingDirectory (Split-Path -Parent $swarmExe) -ErrorAction Stop }
+        $timer = [Diagnostics.Stopwatch]::StartNew()
+        while (@(Get-RoccatSwarmUiProcesses).Count -eq 0 -and $timer.ElapsedMilliseconds -lt 8000) { Start-Sleep -Milliseconds 250 }
+        if (@(Get-RoccatSwarmUiProcesses).Count -eq 0) { throw (Get-Text 'SwarmStartTimeout') }
+        try { $oldControlC = [Console]::TreatControlCAsInput; [Console]::TreatControlCAsInput = $true } catch {}
+        while (@(Get-RoccatSwarmUiProcesses).Count -gt 0) {
             try {
                 if ([Console]::KeyAvailable) {
-                    $pressed = [Console]::ReadKey($true)
-                    $isCtrlC = ($pressed.Key -eq [ConsoleKey]::C -and (([int]$pressed.Modifiers -band [int][ConsoleModifiers]::Control) -ne 0))
-                    if ($pressed.Key -eq [ConsoleKey]::Escape -or $isCtrlC) {
-                        $monitorCancelled = $true
-                        break
-                    }
+                    $key = [Console]::ReadKey($true)
+                    if ($key.Key -eq [ConsoleKey]::Escape -or ($key.Key -eq [ConsoleKey]::C -and ([int]$key.Modifiers -band [int][ConsoleModifiers]::Control))) { break }
                 }
             } catch {}
-            if (@(Get-RoccatSwarmUiProcesses).Count -eq 0) {
-                $swarmClosed = $true
-                break
-            }
-            Start-Sleep -Milliseconds 750
+            Start-Sleep -Milliseconds 500
         }
-    } finally { try { [Console]::TreatControlCAsInput = $oldTreatControlC } catch {} }
-    if ($swarmClosed -or $monitorCancelled) {
-        if (Restore-WavesDriverState $priorDriverStart $priorDriverRunning) {
-            $messageKey = if ($monitorCancelled) { 'SwarmWatchEscape' } else { 'DriverStateRestored' }
-            $fallback = if ($monitorCancelled) { 'Monitoramento encerrado; o estado anterior do driver foi restaurado. O Swarm continua aberto e pode perder recursos Waves.' } else { 'Swarm fechado; estado anterior do driver restaurado e confirmado.' }
-            Write-Host " $((Get-Text $messageKey $fallback))" -ForegroundColor Green
-        } else {
-            Write-Host " $((Get-Text 'DriverRestoreFailed' 'Nao foi possivel confirmar a restauracao do estado anterior do driver.'))" -ForegroundColor Red
-        }
+    } catch { Write-Host "$(Get-Text 'ActionFailed') $($_.Exception.Message)" -ForegroundColor Red }
+    finally {
+        try { [Console]::TreatControlCAsInput = $oldControlC } catch {}
+        Write-Host " [3/3] $((Get-Text 'SwarmSessionRecovery'))" -ForegroundColor Cyan
+        if (Restore-SwarmSession $session) { Write-Host (Get-Text 'DriverStateRestored') -ForegroundColor Green }
+        else { Write-Host (Get-Text 'DriverRestoreFailed') -ForegroundColor Red }
     }
+    Write-Host (Get-Text 'PressKey') -ForegroundColor Gray
+    $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
 }
+
+
 
 function Invoke-SentinelaAtiva {
     Write-Host ""
@@ -1234,6 +1460,7 @@ function Invoke-SentinelaAtiva {
 
     $lastSignature = $null
     $lastDefaultSignature = $null
+    $lastServiceSignature = $null
     $sentinelLog = Join-Path $diagnosticDir 'sentinela.log'
     $sentinelStartedAt = Get-Date
     $lastAudioEventRecord = 0
@@ -1289,8 +1516,9 @@ function Invoke-SentinelaAtiva {
                 Add-Content -LiteralPath $sentinelLog -Value $eventLine -Encoding UTF8 -ErrorAction SilentlyContinue
             }
         }
-        $outputs = @(Get-SynOutputEndpoints)
-        $microphone = Get-SynMicrophoneEndpoint
+        $audioDevices = @(Get-PnpDevice -Class AudioEndpoint -ErrorAction SilentlyContinue)
+        $outputs = @(Get-SynOutputEndpoints $audioDevices)
+        $microphone = Get-SynMicrophoneEndpoint $audioDevices
         $parts = @()
         foreach ($endpoint in $outputs) { $parts += "OUT:$($endpoint.Status):$($endpoint.InstanceId)" }
         if ($microphone) { $parts += "MIC:$($microphone.Status):$($microphone.InstanceId)" } else { $parts += 'MIC:ABSENT' }
@@ -1323,6 +1551,14 @@ function Invoke-SentinelaAtiva {
                     $lastDefaultSignature = $defaultSignature
                 }
             }
+        }
+        $serviceSnapshot = Get-WavesAudioServiceSnapshot
+        $serviceSignature = if ($serviceSnapshot) { "Start=$($serviceSnapshot.Start); Running=$($serviceSnapshot.Running)" } else { 'unavailable' }
+        if ($serviceSignature -ne $lastServiceSignature) {
+            $serviceLine = "[$now] WAVES_SERVICE: $serviceSignature"
+            Write-Host " $serviceLine" -ForegroundColor Cyan
+            Add-Content -LiteralPath $sentinelLog -Value $serviceLine -Encoding UTF8 -ErrorAction SilentlyContinue
+            $lastServiceSignature = $serviceSignature
         }
         Start-Sleep -Seconds 1
     }
@@ -1427,6 +1663,10 @@ function Invoke-FixGlobal {
 }
 
 # --- LOOP PRINCIPAL DO MENU ---
+if (-not (Restore-PendingSwarmSession)) {
+    Write-Host (Get-Text 'PressKey') -ForegroundColor Yellow
+    $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+}
 while ($true) {
     Show-Header
 
@@ -1467,7 +1707,7 @@ while ($true) {
     $choice = Read-MenuChoice (Get-Text 'Prompt' 'Escolha uma opcao (ESC para sair):')
     
     switch ($choice) {
-        '1' { Invoke-OutputGuard }
+        '1' { Invoke-StableSystemMode }
         '2' { Invoke-SwarmAutoPilot }
         '3' { Invoke-SentinelaAtiva }
         '4' { Invoke-FixGlobal }

@@ -1,59 +1,61 @@
-# ROCCAT Syn Pro Air — diagnóstico e gerenciamento de áudio
-
-Ferramenta portátil para manter a saída de reprodução escolhida pelo usuário, investigar mudanças nos endpoints do ROCCAT Syn Pro Air e aplicar ajustes reversíveis no Windows 10 e 11.
+﻿# ROCCAT Syn Pro Air — gerenciamento e diagnóstico de áudio
 
 [![Versão 1.2.0](https://img.shields.io/badge/vers%C3%A3o-1.2.0-blue)](https://github.com/Emertels/Roccat-Syn-Pro-Air-Fix/releases/tag/v1.2.0) · [English](README-EN.md) · [Changelog](CHANGELOG-PT-BR.md)
 
-> **Limite importante:** a opção 1 é uma proteção temporária: enquanto o painel fica aberto, ela reaplica a saída de reprodução que você escolheu se o Windows mudar para outra. Isso contorna a troca automática, mas não identifica nem corrige a causa que faz o headset sumir e reaparecer. O evento de áudio 65 registra uma mudança de estado, mas não identifica quem a iniciou.
+Painel portátil para Windows 10/11, com dez idiomas, correção reversível do serviço Waves, escolha explícita da saída de áudio e diagnóstico dos endpoints do SYN Pro Air.
 
-## O que sabemos sobre a falha
+## O que foi identificado
 
-No caso relatado, o log mostrou os endpoints de saída e microfone alternando entre desativado e ativo, com `ProblemCode=0`, enquanto o dongle permaneceu listado. Isso confirma uma oscilação dos endpoints de áudio, mas ainda não identifica se começou no driver, no Swarm, no caminho USB, no enlace sem fio ou nos serviços de áudio do Windows. A nova leitura registra separadamente quando o Windows troca a saída padrão.
+Na investigação de 18/10/2026, saída e microfone do SYN Pro Air alternavam entre desativado e ativo, enquanto o dongle continuava presente. A reprodução também voltava ao headset após escolher a caixa de som. Encerrar apenas os auxiliares do Swarm/Waves não interrompeu o ciclo.
 
-O painel nunca escolhe o headset automaticamente: na opção 1, você seleciona explicitamente a saída que quer manter. A proteção mexe somente nos três papéis de reprodução do Windows e deixa o dispositivo padrão de captura/microfone intocado. Ela só funciona enquanto o painel estiver aberto; depois de ESC, a saída escolhida permanece padrão, mas o Windows ou outro programa ainda pode trocá-la.
+Em um teste controlado, parar **Waves Audio Services (`WavesTBSvc`)** interrompeu as trocas; iniciar esse mesmo serviço fez o ciclo voltar. Com a nova correção aplicada, foram observados **60 segundos sem troca de saída, sem amostras fora da saída escolhida e sem eventos de mudança de estado do SYN Pro Air**, preservando os três padrões de captura. Posteriormente o serviço foi restaurado a pedido do usuário para testar pelo painel; o usuário relatou o retorno da falha.
 
-O ajuste do padrão de reprodução usa uma interface de política do Windows que não é documentada publicamente. Se o Windows não confirmar a alteração, o script restaura os papéis anteriores quando possível e abre `mmsys.cpl` para seleção manual. Saídas escolhidas individualmente por aplicativos não são sobrescritas por esta proteção.
+Isso associa a falha deste computador ao funcionamento desse componente Waves. Ainda não identifica a instrução interna defeituosa, nem demonstra que todos os casos de desconexão tenham a mesma causa. O script oferece um contorno persistente e reversível; não modifica os binários do fabricante. A persistência após reiniciar precisa ser confirmada pelo usuário. Atualizações ou reparos do fabricante podem reativar o serviço.
 
-## Base técnica
+## Como usar a opção principal
 
-O Core Audio do Windows consulta o endpoint padrão por direção e papel (`Console`, `Multimídia` ou `Comunicações`). A documentação também trata a mudança do endpoint padrão e a mudança de estado do endpoint como notificações distintas. Por isso, o relatório registra esses sinais separadamente; nenhum deles, isoladamente, revela qual programa iniciou a mudança. Os IDs de endpoint são tratados como identificadores opacos, conforme a documentação da Microsoft.
+1. Baixe e extraia os dois arquivos do [ZIP da versão 1.2.0](https://github.com/Emertels/Roccat-Syn-Pro-Air-Fix/releases/tag/v1.2.0).
+2. Abra **`Roccat-SynPro-Manager.vbs`** e aceite o UAC. O lançador abre o PowerShell diretamente, sem uma janela intermediária de CMD.
+3. Escolha **1**, pressione **Enter** para aplicar e selecione sua saída na lista — por exemplo, CREATIVE 2.1.
+4. Acompanhe as quatro etapas: cópia do serviço, desativação/parada do serviço Waves, aplicação da saída escolhida nos três papéis de reprodução e observação por 30 segundos.
+5. Ao terminar, confira o resultado. O contorno não depende de manter o painel aberto. Para desfazer, volte à opção **1** e pressione **R**.
 
-Referências: [consulta do endpoint padrão](https://learn.microsoft.com/pt-br/windows/win32/api/mmdeviceapi/nf-mmdeviceapi-immdeviceenumerator-getdefaultaudioendpoint), [notificação de troca do dispositivo padrão](https://learn.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nf-mmdeviceapi-immnotificationclient-ondefaultdevicechanged), [notificação de estado do endpoint](https://learn.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nf-mmdeviceapi-immnotificationclient-ondevicestatechanged) e [estados possíveis do endpoint](https://learn.microsoft.com/en-us/windows/win32/coreaudio/device-state-xxx-constants). A interface privada usada para aplicar o padrão não faz parte da API pública documentada; a compatibilidade depende da implementação do Windows.
+A observação não reaplica continuamente o padrão: ela verifica se surgiram novas trocas após o ajuste. Se for interrompida, se os eventos estiverem indisponíveis ou se houver novas alterações, a estabilidade fica **não confirmada**. O relatório completo fica em `diagnostics\last-system-repair.json` dentro da pasta de dados.
 
-## Menu
+## Funções do menu
 
-| Opção | O que faz | Efeitos e limites |
-|---|---|---|
-| **1 — Fixar saída padrão** | Lista as saídas ativas; você escolhe uma. O painel a define como padrão para Console, Multimídia e Comunicações e reaplica a escolha se ela mudar enquanto o monitor está aberto. | Não altera o microfone nem o driver Waves. A proteção para com ESC/Ctrl+C; a saída escolhida permanece padrão ao sair. Registra trocas em `default-output-guard.log`. |
-| **2 — Swarm temporário** | Registra o estado anterior do driver, habilita/inicia Waves e abre o Swarm. Aguarda o processo da interface `ROCCAT_Swarm.exe`, ignorando o auxiliar `ROCCAT_Swarm_Monitor.exe`, que pode ficar residente. | Serve para configurar EQ/microfone; não corrige a troca de saída. Feche Swarm completamente pelo ícone da bandeja ou use ESC/Ctrl+C para restaurar o driver. O Swarm fica aberto quando o monitor é cancelado. |
-| **3 — Monitoramento passivo** | Acompanha o evento 65, estados PnP dos endpoints e os padrões de reprodução Console, Multimídia e Comunicações. | Somente leitura: não altera driver, endpoint, microfone ou saída padrão. ESC/Ctrl+C volta ao menu. O registro fica em `%LOCALAPPDATA%\RoccatSynProManager\diagnostics\sentinela.log`. |
-| **4 — Energia USB e comunicações** | Salva uma cópia e ajusta a suspensão seletiva USB nos planos de energia, a atenuação de comunicações do usuário e, quando a consulta WMI permite, a economia de energia dos Root Hubs. | As alterações verificadas e a cópia ficam em `%LOCALAPPDATA%\RoccatSynProManager\system-backup.json`. `R` restaura a cópia, `Enter` aplica/reaplica e `Q` cancela. Pode não resolver a falha. |
-| **5 — Diagnóstico e painel de som** | Gera um relatório com endpoints PnP, driver, eventos recentes de áudio/USB, saída padrão de reprodução por função e abre `mmsys.cpl`. | O relatório fica na pasta `diagnostics`. Revise-o antes de compartilhar: inclui nome do computador, IDs de dispositivos e eventos locais. |
-| **6 — Idioma** | Escolhe um entre dez idiomas, com detecção automática inicial. | As traduções do pacote portátil estão dentro do próprio `.ps1`; a escolha fica no perfil local do usuário. |
+- **1 — Correção do serviço Waves:** salva o estado original uma vez, define `WavesTBSvc` como Desativado, para o serviço e verifica o estado. Não tenta desativar o driver de kernel `WavesTBVirtual`. Seleciona somente a saída escolhida pelo usuário; não altera o microfone padrão. **R** restaura o serviço. **P** abre a proteção opcional de saída, que reaplica a escolha enquanto a janela estiver aberta e termina com ESC/Ctrl+C.
+- **2 — Swarm temporário:** guarda os estados de serviço, driver e saída; habilita temporariamente Waves e abre o Swarm para configuração. Acompanha a interface `ROCCAT_Swarm.exe`, ignorando o monitor residente. Quando o Swarm sai completamente ou você usa ESC/Ctrl+C, restaura o estado anterior. Se o Swarm apenas minimizar para a bandeja, o monitor continua aguardando. Cancelar o monitor deixa o Swarm aberto. O ciclo pode voltar durante essa sessão porque o serviço foi reativado. Uma sessão interrompida à força é recuperada na próxima abertura; falhas preservam a cópia para nova tentativa.
+- **3 — Monitoramento passivo:** registra eventos de áudio 65, estados PnP, padrões de reprodução e mudanças do serviço Waves. Não aplica correções. ESC/Ctrl+C volta ao menu.
+- **4 — Energia USB e comunicações:** salva e verifica ajustes de suspensão USB, atenuação de comunicações e economia dos Root Hubs quando acessíveis. **R** restaura essa cópia. A restauração de energia não altera o serviço/driver Waves.
+- **5 — Diagnóstico e painel de som:** salva relatório de endpoints, pais PnP, serviço, driver, processos relevantes, padrões de reprodução/captura e eventos recentes; abre `mmsys.cpl`.
+- **6 — Idioma:** dez traduções incorporadas ao PS1 portátil; preferência salva no perfil do usuário.
+- **0 ou ESC no menu:** fecha o painel. Nos monitores, ESC/Ctrl+C retorna ao menu.
 
-Para proteger a caixa de som, escolha-a na lista da opção 1 e deixe o painel aberto enquanto usa o computador. Se a saída escolhida ficar indisponível, o script aguarda que ela reapareça e registra o estado. A opção 2 pode alterar temporariamente o driver Waves e afetar efeitos do Swarm. A opção 1 não modifica a captura/microfone; nenhuma opção garante LEDs ou outros controles.
+## Efeito no headset e no Swarm
 
-## Como iniciar
+A opção 1 deixa os dispositivos de áudio e microfone habilitados e preserva o padrão de captura. Não encerra o Swarm nem seu monitor. Entretanto, desativar o serviço Waves pode indisponibilizar equalização, efeitos e processamento avançado dependentes desse serviço. O Swarm abrir não comprova que todos os seus efeitos estão ativos.
 
-1. Baixe `Roccat-Syn-Pro-Air-Fix-v1.2.0-Portable.zip` na [página da versão](https://github.com/Emertels/Roccat-Syn-Pro-Air-Fix/releases/tag/v1.2.0) e extraia os dois arquivos na mesma pasta.
-2. Abra **`Roccat-SynPro-Manager.vbs`**. Ele solicita elevação pelo UAC e inicia o PowerShell sem passar por uma janela de CMD.
-3. Para impedir que a reprodução volte ao headset durante a sessão, escolha **1**, selecione a caixa de som e mantenha o painel aberto. `ESC` encerra a proteção e volta ao menu; `ESC` no menu principal fecha o painel.
-
-O pacote é portátil e não tem instalador: contém somente o script PowerShell e o lançador VBS. A execução requer privilégios de administrador para as opções que alteram o driver ou as configurações do sistema. O Windows pode mostrar um aviso de segurança para scripts baixados; confira a origem e o conteúdo antes de autorizar.
+O usuário observou funcionamento do headset e do Swarm durante o contorno. Volume audível, qualidade do microfone, LEDs e cada controle do Swarm exigem confirmação no equipamento; a verificação do script mede estados e padrões do Windows. A opção 2 permite uma sessão temporária com Waves ativo, com o risco de a falha reaparecer nessa sessão.
 
 ## Dados e restauração
 
-O script guarda configuração, cópia de segurança e diagnósticos em `%LOCALAPPDATA%\RoccatSynProManager` (com fallback para a pasta do script se o perfil não estiver disponível). Opções que alteram configurações verificam os valores antes/depois sempre que o Windows expõe uma forma de consulta. A opção 4 pode restaurar a cópia; não apague `system-backup.json` antes de restaurar.
+Os dados ficam em `%LOCALAPPDATA%\RoccatSynProManager`, com fallback para a pasta do script:
 
-O monitoramento da opção 3 é somente leitura. Ele separa a reativação do endpoint da troca real de saída padrão. Um evento ainda não identifica o programa responsável; compare os horários com a árvore PnP e eventos USB/Kernel-PnP. Registros e cópias ficam em `%LOCALAPPDATA%\RoccatSynProManager`.
+- `config.json`: preferência de idioma.
+- `waves-service-backup.json`: estado original do serviço, usado pela opção 1 / R. Reaplicar não sobrescreve esse original.
+- `swarm-session.json`: estado temporário pendente da opção 2; removido após a restauração confirmada do serviço e driver. A restauração da saída também é tentada e uma falha é informada separadamente.
+- `system-backup.json`: cópia dos ajustes de energia/comunicações.
+- `diagnostics`: relatórios e registros de observação.
 
-## Arquivos do repositório
+Não apague cópias necessárias para desfazer alterações. O JSON separado de traduções não é necessário na pasta portátil. Esses arquivos de dados têm outra finalidade e são criados durante o uso. Relatórios podem conter nome do computador, IDs e eventos locais; revise antes de compartilhar.
 
-- `Roccat-SynPro-Manager.ps1`: fonte do painel. No repositório, as traduções são editadas em `i18n.json`; o processo de pacote as incorpora ao script distribuído.
-- `Roccat-SynPro-Manager.vbs`: lançador elevado, sem janela intermediária de CMD.
-- `tools/New-PortablePackage.ps1`: monta e confere um ZIP com somente o `.ps1` e o `.vbs`.
-- `AGENTS-PT-BR.md` / `AGENTS-EN.md`: arquitetura e diretrizes de manutenção.
+## Base técnica e manutenção
+
+O Windows distingue [mudança de padrão](https://learn.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nf-mmdeviceapi-immnotificationclient-ondefaultdevicechanged) e [mudança de estado do endpoint](https://learn.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nf-mmdeviceapi-immnotificationclient-ondevicestatechanged). O evento 65 isolado não identifica o processo responsável. Os padrões são consultados por [direção e papel](https://learn.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nf-mmdeviceapi-immdeviceenumerator-getdefaultaudioendpoint). O setter de reprodução usa `IPolicyConfig`, interface sem documentação pública; em falhas, o painel oferece seleção manual no painel de som. Preferências de saída individuais dos aplicativos não são sobrescritas.
+
+No repositório, `i18n.json` é a fonte editável das traduções. `tools/New-PortablePackage.ps1` incorpora esse conteúdo ao script e gera um PS1 UTF-8 com BOM, compatível com Windows PowerShell 5.1. O ZIP contém **somente PS1 e VBS**, sem documentação, BAT ou JSON separado. É um pacote portátil, não um instalador. Os guias [AGENTS-PT-BR.md](AGENTS-PT-BR.md) e [AGENTS-EN.md](AGENTS-EN.md) descrevem manutenção e limites.
 
 ## Créditos
 
-Desenvolvido com **Antigravity e Codex**. O projeto é distribuído sob a licença MIT; consulte [LICENSE](LICENSE).
+Desenvolvido com **Antigravity e Codex**. Licença [MIT](LICENSE).

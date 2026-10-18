@@ -1,59 +1,61 @@
-# ROCCAT Syn Pro Air — audio diagnostics and manager
+﻿# ROCCAT Syn Pro Air — audio management and diagnostics
 
-A portable utility for holding the user's chosen playback output, investigating ROCCAT Syn Pro Air endpoint changes, and applying selected reversible settings on Windows 10 and 11.
+[Version 1.2.0](https://github.com/Emertels/Roccat-Syn-Pro-Air-Fix/releases/tag/v1.2.0) · [Português](README-PT-BR.md) · [Changelog](CHANGELOG-EN.md)
 
-[![Version 1.2.0](https://img.shields.io/badge/version-1.2.0-blue)](https://github.com/Emertels/Roccat-Syn-Pro-Air-Fix/releases/tag/v1.2.0) · [Português (Brasil)](README.md) · [Changelog](CHANGELOG-EN.md)
+Portable Windows 10/11 panel with ten languages, reversible Waves service mitigation, explicit playback selection and SYN Pro Air endpoint diagnostics.
 
-> **Important limitation:** option 1 is a temporary guard. While the panel stays open, it reapplies the playback output you choose if Windows switches to another device. This works around the automatic switch but does not identify or repair the cause of the headset endpoint disappearing and returning. Audio event 65 records a state change but does not identify who initiated it.
+## Investigation findings
 
-## What the available evidence says
+On October 18, 2026, the SYN Pro Air render and capture endpoints repeatedly changed between disabled and active while the dongle remained present. Playback also switched back to the headset after selecting speakers. Stopping Swarm/Waves GUI helpers alone did not stop this cycle.
 
-In the reported case, the log showed the output and microphone endpoints cycling between disabled and active with `ProblemCode=0`, while the dongle remained listed. This confirms audio endpoint state changes, but does not identify whether they began in the driver, Swarm, USB path, wireless link, or Windows audio services. The updated trace separately records when Windows changes the default playback device.
+In controlled observations, stopping **Waves Audio Services (`WavesTBSvc`)** stopped the cycle; starting that same service reproduced it. Applying the new mitigation produced **60 seconds with no default-output changes, no off-target samples and no SYN Pro Air state-change events**, with all three capture defaults unchanged. The service was subsequently restored at the user's request to test from the panel; the user reported the fault returning.
 
-The panel never selects the headset automatically: in option 1, you explicitly choose the output to hold. The guard changes only the three Windows playback roles; it leaves the default capture/microphone device untouched. It runs only while the panel is open. After ESC, the selected output remains the default, but Windows or an application may change it again later.
+This isolates an implicated Waves component on this computer. It does not identify the internal faulty instruction or establish a universal cause for disconnections. The script supplies a persistent, reversible mitigation without patching vendor binaries. Reboot persistence still requires user confirmation; vendor updates or repair tools may re-enable the service.
 
-Changing the playback default uses a Windows policy interface that is not publicly documented. If Windows does not confirm the change, the script restores the previous roles when possible and opens `mmsys.cpl` for manual selection. Per-app outputs are not overridden by this guard.
+## Main workflow
 
-## Technical basis
+1. Extract both files from the [v1.2.0 ZIP](https://github.com/Emertels/Roccat-Syn-Pro-Air-Fix/releases/tag/v1.2.0).
+2. Open **`Roccat-SynPro-Manager.vbs`** and accept UAC. It starts PowerShell directly without an intermediate CMD window.
+3. Select **1**, press **Enter** to apply, then choose your playback device from the list.
+4. Follow four stages: service backup, disable/stop Waves Audio Services, apply the selected output to all three render roles, observe for 30 seconds.
+5. Review the result. Keeping the panel open is unnecessary for the service mitigation. To undo it, select **1**, then **R**.
 
-Windows Core Audio queries the default endpoint by direction and role (`Console`, `Multimedia`, or `Communications`). Its documentation treats a default-endpoint change and an endpoint-state change as separate notifications. The report therefore records these signals separately; neither alone identifies which program initiated the change. Endpoint IDs are treated as opaque identifiers, as Microsoft documents.
+Observation does not keep reapplying the output. Interrupted observation, unavailable events or further changes mean stability remains **unconfirmed**. See `diagnostics\last-system-repair.json` in the data folder for the complete result.
 
-References: [querying the default endpoint](https://learn.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nf-mmdeviceapi-immdeviceenumerator-getdefaultaudioendpoint), [default-device-change notification](https://learn.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nf-mmdeviceapi-immnotificationclient-ondefaultdevicechanged), [endpoint-state notification](https://learn.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nf-mmdeviceapi-immnotificationclient-ondevicestatechanged), and [endpoint state values](https://learn.microsoft.com/en-us/windows/win32/coreaudio/device-state-xxx-constants). The private interface used to set the default is not part of the documented public API; compatibility depends on the Windows implementation.
+## Menu functions
 
-## Menu
+- **1 — Waves service mitigation:** preserves the original service state once, disables/stops `WavesTBSvc` and verifies it. Does not disable the `WavesTBVirtual` kernel driver or change capture defaults. **R** restores the service. **P** opens the optional session output guard, which reapplies your chosen render device while the window remains open; ESC/Ctrl+C stops that guard.
+- **2 — Temporary Swarm:** snapshots service, kernel driver and render defaults; temporarily enables Waves and launches Swarm. Watches `ROCCAT_Swarm.exe`, ignoring its resident monitor. Fully exiting Swarm or pressing ESC/Ctrl+C restores the previous state. Minimizing to the tray keeps the session active; cancelling the monitor leaves Swarm open. The cycling fault can return while Waves is enabled. A forcibly interrupted session is recovered on the next launch; failed restoration retains the snapshot for another attempt.
+- **3 — Passive monitor:** records audio event 65, endpoint PnP states, render defaults and Waves service changes. Makes no corrections. ESC/Ctrl+C returns to the menu.
+- **4 — USB power and communications:** backs up, applies and checks USB suspend, communications attenuation and accessible Root Hub power settings. **R** restores that backup independently of Waves driver/service state.
+- **5 — Diagnostics and sound panel:** saves endpoint/parent PnP, service, driver, relevant processes, render/capture defaults and recent events; opens `mmsys.cpl`.
+- **6 — Language:** ten translations embedded in the portable PS1; preference stored in the user profile.
+- **0 or ESC in the main menu:** exits. ESC/Ctrl+C in monitors returns to the menu.
 
-| Option | What it does | Effects and limits |
-|---|---|---|
-| **1 — Pin default output** | Lists active outputs; you choose one. The panel sets it as default for Console, Multimedia, and Communications and reapplies it if it changes while monitoring is open. | Does not change the microphone or Waves driver. The guard stops on ESC/Ctrl+C; the chosen output remains default afterward. Changes are logged in `default-output-guard.log`. |
-| **2 — Temporary Swarm** | Captures the driver's prior state, enables/starts Waves, and opens Swarm. It waits for the `ROCCAT_Swarm.exe` interface process and ignores `ROCCAT_Swarm_Monitor.exe`, which can stay resident in the background. | For EQ/microphone setup only; it does not fix output switching. Exit Swarm fully from its tray icon or use ESC/Ctrl+C to restore the driver. Cancelling leaves Swarm open. |
-| **3 — Passive monitoring** | Watches event 65, endpoint PnP states, and the Console, Multimedia, and Communications playback defaults. | Read-only: does not change the driver, endpoints, microphone, or default output. ESC/Ctrl+C returns to the menu. The log is `%LOCALAPPDATA%\RoccatSynProManager\diagnostics\sentinela.log`. |
-| **4 — USB power and communications** | Saves a snapshot and adjusts USB selective suspend across power plans, the current user's communications ducking preference, and—when WMI exposes it—Root Hub power saving. | Verified settings and the snapshot are stored in `%LOCALAPPDATA%\RoccatSynProManager\system-backup.json`. `R` restores the snapshot, `Enter` applies/reapplies, and `Q` cancels. It may not resolve the disconnects. |
-| **5 — Diagnostics and Sound panel** | Writes a report with PnP endpoints, driver details, recent audio/USB events, playback defaults by role, and opens `mmsys.cpl`. | The report is saved under `diagnostics`. Review it before sharing: it includes the computer name, device IDs, and local events. |
-| **6 — Language** | Selects one of ten languages; automatic detection is used initially. | Translations in the portable release are embedded in the `.ps1`; the selected language is stored in the user's local profile. |
+## Headset and Swarm impact
 
-To protect your speakers, choose them in option 1 and leave the panel open while using the PC. If the selected output becomes unavailable, the script waits for it to return and logs the state. Option 2 may temporarily change the Waves driver and affect Swarm effects. Option 1 does not change capture/microphone; no option guarantees LEDs or other controls.
+Option 1 leaves playback/capture devices enabled, preserves capture defaults and does not close Swarm or its monitor. Disabling Waves Audio Services can make dependent EQ, effects and advanced processing unavailable. Swarm opening does not prove all its effects are active.
 
-## Start the tool
+The user observed headset and Swarm operation during mitigation. Audible playback, microphone quality, LEDs and individual Swarm controls still require physical confirmation; the script checks Windows states and defaults. Option 2 offers temporary Waves access with the risk that cycling returns during that session.
 
-1. Download `Roccat-Syn-Pro-Air-Fix-v1.2.0-Portable.zip` from the [release page](https://github.com/Emertels/Roccat-Syn-Pro-Air-Fix/releases/tag/v1.2.0) and extract both files into one folder.
-2. Open **`Roccat-SynPro-Manager.vbs`**. It requests elevation through UAC and starts PowerShell without an intermediate CMD window.
-3. To keep playback from switching back to the headset during a session, choose **1**, select your speakers, and leave the panel open. `ESC` stops the guard and returns to the menu; `ESC` in the main menu closes the panel.
+## Data and recovery
 
-This is a portable package, not an installer. It contains only the PowerShell script and the VBS launcher. Administrator privileges are required for options that change the driver or system settings. Windows may show a security prompt for downloaded scripts; verify the source and contents before allowing it to run.
+Data lives in `%LOCALAPPDATA%\RoccatSynProManager`, falling back to the script folder:
 
-## Data and restore
+- `config.json`: language preference.
+- `waves-service-backup.json`: original service configuration for option 1 / R; reapplying does not replace this baseline.
+- `swarm-session.json`: pending option 2 session, removed after verified service and driver restoration. Render restoration is also attempted and any failure is reported separately.
+- `system-backup.json`: power and communications backup.
+- `diagnostics`: reports and observation logs.
 
-Configuration, backups, and diagnostics are stored in `%LOCALAPPDATA%\RoccatSynProManager` (with a fallback to the script folder if the user profile is unavailable). Options that modify settings verify them before/after whenever Windows exposes a query path. Option 4 can restore the snapshot; do not delete `system-backup.json` before restoring.
+Keep backups needed to undo changes. The portable folder needs no separate translation JSON; runtime data JSON files serve a different purpose. Reports can include computer names, device IDs and local events; review before sharing.
 
-Option 3 is read-only and separates endpoint reactivation from an actual default-output change. An event still does not identify the responsible program; compare report timestamps with PnP and USB/Kernel-PnP events. Logs and backups are under `%LOCALAPPDATA%\RoccatSynProManager`.
+## Technical basis and packaging
 
-## Repository files
+Windows distinguishes [default-device changes](https://learn.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nf-mmdeviceapi-immnotificationclient-ondefaultdevicechanged) from [endpoint-state changes](https://learn.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nf-mmdeviceapi-immnotificationclient-ondevicestatechanged). Event 65 alone does not identify an initiating process. Defaults are queried by [direction and role](https://learn.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nf-mmdeviceapi-immdeviceenumerator-getdefaultaudioendpoint). Render selection uses the nonpublic `IPolicyConfig` interface; failures offer the classic sound panel as a manual fallback. Per-application output overrides are not changed.
 
-- `Roccat-SynPro-Manager.ps1`: panel source. In the repository, translations are edited in `i18n.json`; packaging embeds them into the distributed script.
-- `Roccat-SynPro-Manager.vbs`: elevated launcher without an intermediate CMD window.
-- `tools/New-PortablePackage.ps1`: builds and inspects a ZIP containing only the `.ps1` and `.vbs`.
-- `AGENTS-PT-BR.md` / `AGENTS-EN.md`: architecture and maintenance guidance.
+Repository translations remain editable in `i18n.json`. `tools/New-PortablePackage.ps1` embeds them into a UTF-8 BOM PS1 for Windows PowerShell 5.1. The ZIP contains **only PS1 and VBS**, without documentation, BAT or standalone JSON. This is a portable package, not an installer. See [AGENTS-EN.md](AGENTS-EN.md) for maintenance guidance.
 
 ## Credits
 
-Developed with **Antigravity and Codex** and distributed under the MIT license; see [LICENSE](LICENSE).
+Developed with **Antigravity and Codex**. [MIT license](LICENSE).
