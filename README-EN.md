@@ -1,6 +1,6 @@
 ﻿# ROCCAT Syn Pro Air — audio management and diagnostics
 
-[Version 1.2.0](https://github.com/Emertels/Roccat-Syn-Pro-Air-Fix/releases/tag/v1.2.0) · [Português](README-PT-BR.md) · [Changelog](CHANGELOG-EN.md)
+[Version 1.1.0](https://github.com/Emertels/Roccat-Syn-Pro-Air-Fix/releases/tag/v1.1.0) · [Português](README-PT-BR.md) · [Changelog](CHANGELOG-EN.md)
 
 Portable Windows 10/11 panel with ten languages, reversible Waves service mitigation, preservation of audio devices and current defaults and SYN Pro Air endpoint diagnostics.
 
@@ -14,7 +14,7 @@ This isolates an implicated Waves component on this computer. It does not identi
 
 ## Main workflow
 
-1. Extract both files from the [v1.2.0 ZIP](https://github.com/Emertels/Roccat-Syn-Pro-Air-Fix/releases/tag/v1.2.0).
+1. Extract both files from the [v1.1.0 ZIP](https://github.com/Emertels/Roccat-Syn-Pro-Air-Fix/releases/tag/v1.1.0).
 2. Open **`Roccat-SynPro-Manager.vbs`** and accept UAC. It starts PowerShell directly without an intermediate CMD window.
 3. Select **1**, then press **Enter** to apply. No device selection is required; current defaults are preserved.
 4. Follow four stages: service backup, disable/stop Waves Audio Services, check headset, microphone and previously active device availability, observe for 30 seconds.

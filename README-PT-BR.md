@@ -1,6 +1,6 @@
 ﻿# ROCCAT Syn Pro Air — gerenciamento e diagnóstico de áudio
 
-[![Versão 1.2.0](https://img.shields.io/badge/vers%C3%A3o-1.2.0-blue)](https://github.com/Emertels/Roccat-Syn-Pro-Air-Fix/releases/tag/v1.2.0) · [English](README-EN.md) · [Changelog](CHANGELOG-PT-BR.md)
+[![Versão 1.1.0](https://img.shields.io/badge/vers%C3%A3o-1.1.0-blue)](https://github.com/Emertels/Roccat-Syn-Pro-Air-Fix/releases/tag/v1.1.0) · [English](README-EN.md) · [Changelog](CHANGELOG-PT-BR.md)
 
 Painel portátil para Windows 10/11, com dez idiomas, correção reversível do serviço Waves, preservação dos dispositivos e padrões de áudio e diagnóstico dos endpoints do SYN Pro Air.
 
@@ -14,7 +14,7 @@ Isso associa a falha deste computador ao funcionamento desse componente Waves. A
 
 ## Como usar a opção principal
 
-1. Baixe e extraia os dois arquivos do [ZIP da versão 1.2.0](https://github.com/Emertels/Roccat-Syn-Pro-Air-Fix/releases/tag/v1.2.0).
+1. Baixe e extraia os dois arquivos do [ZIP da versão 1.1.0](https://github.com/Emertels/Roccat-Syn-Pro-Air-Fix/releases/tag/v1.1.0).
 2. Abra **`Roccat-SynPro-Manager.vbs`** e aceite o UAC. O lançador abre o PowerShell diretamente, sem uma janela intermediária de CMD.
 3. Escolha **1** e pressione **Enter** para aplicar. Não é necessário escolher um dispositivo; os padrões atuais são preservados.
 4. Acompanhe as quatro etapas: cópia do serviço, desativação/parada do serviço Waves, conferência de disponibilidade do headset, microfone e dispositivos antes ativos e observação por 30 segundos.

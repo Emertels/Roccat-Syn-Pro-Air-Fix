@@ -1,5 +1,5 @@
 ﻿# ==============================================================================
-#  ROCCAT SYN PRO AIR - MULTILINGUAL MASTER MANAGER (v1.2.0)
+#  ROCCAT SYN PRO AIR - MULTILINGUAL MASTER MANAGER (v1.1.0)
 #  Auto-detects Windows language from 10 native supported languages
 #  Developed with Antigravity & Codex
 # ==============================================================================

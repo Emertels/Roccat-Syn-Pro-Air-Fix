@@ -1,6 +1,6 @@
 ﻿# Changelog — ROCCAT Syn Pro Air
 
-## [1.2.0] — revision dated 2026-10-18
+## [1.1.0] — revision dated 2026-10-18
 
 ### Main mitigation
 
@@ -33,7 +33,7 @@
 
 - Developed with **Antigravity and Codex**.
 
-## [1.2.0] — initial publication on 2026-10-16
+## [1.1.0] — initial publication on 2026-10-16
 
 - Passive monitoring, explicit output guard, temporary driver restoration, power checks, VBS launch without CMD and embedded translations.
 - The October 18 revision replaces the same-version ZIP at the maintainer's request and incorporates Waves service investigation.

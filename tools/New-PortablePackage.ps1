@@ -1,4 +1,4 @@
-param(
+﻿param(
     [Parameter(Mandatory = $true)]
     [ValidateNotNullOrEmpty()]
     [string]$OutputDirectory
@@ -10,7 +10,7 @@ $scriptSource = Join-Path $repoRoot 'Roccat-SynPro-Manager.ps1'
 $launcherSource = Join-Path $repoRoot 'Roccat-SynPro-Manager.vbs'
 $translationSource = Join-Path $repoRoot 'i18n.json'
 $marker = '@@ROCCAT_I18N_JSON_EMBED@@'
-$archiveName = 'Roccat-Syn-Pro-Air-Fix-v1.2.0-Portable.zip'
+$archiveName = 'Roccat-Syn-Pro-Air-Fix-v1.1.0-Portable.zip'
 
 foreach ($requiredFile in @($scriptSource, $launcherSource, $translationSource)) {
     if (-not (Test-Path -LiteralPath $requiredFile -PathType Leaf)) {

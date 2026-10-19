@@ -1,6 +1,6 @@
 ﻿# Changelog — ROCCAT Syn Pro Air
 
-## [1.2.0] — revisão de 2026-10-18
+## [1.1.0] — revisão de 2026-10-18
 
 ### Correção principal
 
@@ -33,7 +33,7 @@
 
 - Desenvolvido com **Antigravity e Codex**.
 
-## [1.2.0] — publicação inicial em 2026-10-16
+## [1.1.0] — publicação inicial em 2026-10-16
 
 - Monitoramento passivo, guardião de saída escolhida, restauração temporária do driver, verificações de energia, lançador VBS sem CMD e pacote com traduções incorporadas.
 - A revisão de 18/10 substitui o ZIP dessa mesma versão a pedido do mantenedor e incorpora a investigação do serviço Waves.
